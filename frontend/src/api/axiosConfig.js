@@ -1,20 +1,16 @@
 import axios from "axios";
 
-// Was hardcoded to "http://localhost:5000/api" — that only works when
-// the FRONTEND page itself was opened via "localhost", because
-// "localhost" always means "this same device". A phone opening the
-// frontend via your PC's LAN IP (e.g. http://192.168.1.5:5173) would
-// still try to hit "localhost:5000" on ITSELF (the phone), where
-// nothing is running, and every API call would fail.
-//
-// Fix: build the backend URL from whatever hostname the frontend was
-// actually loaded from. Opened via http://localhost:5173  -> backend
-// calls go to http://localhost:5000/api (unchanged, still works on the
-// PC). Opened via http://192.168.1.5:5173 -> backend calls go to
-// http://192.168.1.5:5000/api (now reachable from the phone too),
-// as long as the backend is also running on that same PC on port 5000.
+// Production-la, frontend (Vercel) and backend (Render) are on
+// completely different domains, so we can't guess the backend URL
+// from window.location anymore. Instead, use an environment variable
+// set at build time (VITE_API_URL), and fall back to the old
+// hostname-based logic for local dev when that variable isn't set.
+const baseURL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api`
+  : `http://${window.location.hostname}:5000/api`;
+
 const api = axios.create({
-  baseURL: `http://${window.location.hostname}:5000/api`,
+  baseURL,
 });
 
 api.interceptors.request.use((config) => {
