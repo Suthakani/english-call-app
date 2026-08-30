@@ -5,6 +5,7 @@ const ChallengeCompletion = require("../models/ChallengeCompletion");
 const ConversationSession = require("../models/ConversationSession");
 const VocabWord = require("../models/VocabWord");
 const { sendReminderEmail } = require("../utils/sendEmail");
+const SiteSettings = require("../models/SiteSettings");
 const getOverview = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments({ isVerified: true });
@@ -380,6 +381,39 @@ const sendReminderBulk = async (req, res) => {
     res.status(500).json({ message: "Error sending bulk reminders", error: error.message });
   }
 };
+// @route GET /api/admin/announcement
+const getAnnouncement = async (req, res) => {
+  try {
+    let settings = await SiteSettings.findOne({ key: "site-settings" });
+    if (!settings) {
+      settings = await SiteSettings.create({ key: "site-settings" });
+    }
+    res.json({
+      message: settings.announcementMessage,
+      active: settings.announcementActive,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error loading announcement", error: error.message });
+  }
+};
+
+// @route PUT /api/admin/announcement  { message, active }
+const updateAnnouncement = async (req, res) => {
+  try {
+    const { message, active } = req.body;
+    const settings = await SiteSettings.findOneAndUpdate(
+      { key: "site-settings" },
+      { announcementMessage: message, announcementActive: active },
+      { new: true, upsert: true }
+    );
+    res.json({
+      message: settings.announcementMessage,
+      active: settings.announcementActive,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error updating announcement", error: error.message });
+  }
+};
 module.exports = {
   getOverview,
   getCategoryPopularity,
@@ -395,6 +429,8 @@ module.exports = {
   getDauTrend,
   getLanguageBreakdown,
   getLoginMethodSplit,
-  sendReminderToUser,
+    sendReminderToUser,
   sendReminderBulk,
+  getAnnouncement,
+  updateAnnouncement,
 };

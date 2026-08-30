@@ -72,7 +72,9 @@ export default function Leaderboard() {
       <button className="leaderboard-back" onClick={() => navigate('/profile')}>
         <Icon name="arrow-left" size={16} /> Back to Profile
       </button>
-
+<button className="leaderboard-back" onClick={() => navigate('/winners')} style={{ marginLeft: 10 }}>
+  🏆 Hall of Champions
+</button>
       <div className="leaderboard-header">
         <div className="leaderboard-header-icon"><Icon name="trophy" size={26} /></div>
         <h1>Leaderboard</h1>

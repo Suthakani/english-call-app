@@ -18,6 +18,8 @@ const {
   getLoginMethodSplit,
   sendReminderToUser,
   sendReminderBulk,
+  getAnnouncement,
+  updateAnnouncement,
 } = require("../controllers/adminController");
 
 router.get("/overview", protect, isAdmin, getOverview);
@@ -40,5 +42,6 @@ router.get("/login-method-split", protect, isAdmin, getLoginMethodSplit);
 // ── Re-engagement reminders ──
 router.post("/send-reminder/:userId", protect, isAdmin, sendReminderToUser);
 router.post("/send-reminders-bulk", protect, isAdmin, sendReminderBulk);
-
+router.get("/announcement", protect, isAdmin, getAnnouncement);
+router.put("/announcement", protect, isAdmin, updateAnnouncement);
 module.exports = router;

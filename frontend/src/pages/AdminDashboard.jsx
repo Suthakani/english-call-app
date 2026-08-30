@@ -52,6 +52,8 @@ export default function AdminDashboard() {
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [reminderStatus, setReminderStatus] = useState({}); // { [userId]: 'sending' | 'sent' | 'error' }
 const [bulkSending, setBulkSending] = useState(false);
+const [announcement, setAnnouncement] = useState({ message: "", active: false });
+const [announcementSaving, setAnnouncementSaving] = useState(false);
   // ── New data: engagement + insights + messages ──
   const [challengeStats, setChallengeStats] = useState(null);
   const [dauTrend, setDauTrend] = useState([]);
@@ -95,6 +97,7 @@ const [bulkSending, setBulkSending] = useState(false);
       api.get("/admin/login-method-split"),
       api.get("/admin/contact-submissions"),
     ])
+    
       .then(([challengeRes, dauRes, vocabRes, levelTestRes, langRes, loginRes, contactRes]) => {
         setChallengeStats(challengeRes.data);
         setDauTrend(dauRes.data);
@@ -105,10 +108,16 @@ const [bulkSending, setBulkSending] = useState(false);
         setContactSubs(contactRes.data);
         setExtrasLoading(false);
       })
-      .catch((err) => {
+            .catch((err) => {
         setExtrasError(err.response?.data?.message || "Failed to load extended stats");
         setExtrasLoading(false);
       });
+  }, []);
+
+  useEffect(() => {
+    api.get("/admin/announcement")
+      .then(({ data }) => setAnnouncement(data))
+      .catch(() => {});
   }, []);
 
   // Search runs against the already-loaded users list client-side — the
@@ -158,7 +167,16 @@ const [bulkSending, setBulkSending] = useState(false);
       .catch(() => alert("Bulk send failed"))
       .finally(() => setBulkSending(false));
   };
-
+  const saveAnnouncement = () => {
+    setAnnouncementSaving(true);
+    api.put("/admin/announcement", announcement)
+      .then(({ data }) => {
+        setAnnouncement(data);
+        alert("Announcement updated");
+      })
+      .catch(() => alert("Could not save announcement"))
+      .finally(() => setAnnouncementSaving(false));
+  };
   const reminderCooldownActive = (lastSentAt) => {
     if (!lastSentAt) return false;
     const hoursSince = (Date.now() - new Date(lastSentAt).getTime()) / (1000 * 60 * 60);
@@ -211,6 +229,30 @@ const [bulkSending, setBulkSending] = useState(false);
           {/* ── OVERVIEW ── */}
           {activeTab === "overview" && (
             <div className="admin-tab-panel">
+                            <div className="admin-announcement-card">
+                <div className="admin-announcement-header">
+                  <h3>📢 Site Announcement</h3>
+                  <label className="admin-announcement-toggle">
+                    <input
+                      type="checkbox"
+                      checked={announcement.active}
+                      onChange={(e) => setAnnouncement((a) => ({ ...a, active: e.target.checked }))}
+                    />
+                    <span>{announcement.active ? "Active" : "Inactive"}</span>
+                  </label>
+                </div>
+                <textarea
+                  className="admin-announcement-input"
+                  placeholder="e.g. 🎉 New feature launched — try it now!"
+                  value={announcement.message}
+                  onChange={(e) => setAnnouncement((a) => ({ ...a, message: e.target.value }))}
+                  rows={2}
+                />
+                <button className="admin-export-btn" onClick={saveAnnouncement} disabled={announcementSaving}>
+                  {announcementSaving ? "Saving…" : "Save Announcement"}
+                </button>
+              </div>
+
               {users.length > 0 && (() => {
   const top = [...users].sort((a, b) => b.streakDays - a.streakDays)[0];
   return (
@@ -753,7 +795,25 @@ const [bulkSending, setBulkSending] = useState(false);
   font-size: 12px; font-weight: 800; color: #05100b;
   background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
 }
-
+.admin-announcement-card {
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  border-radius: 18px; padding: 20px 24px; margin-bottom: 24px;
+}
+.admin-announcement-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.admin-announcement-header h3 { margin: 0; font-size: 16px; color: #fff; }
+.admin-announcement-toggle {
+  display: flex; align-items: center; gap: 8px; cursor: pointer;
+  font-size: 13px; color: var(--text-secondary);
+}
+.admin-announcement-input {
+  width: 100%; padding: 12px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1);
+  color: #fff; font-size: 14px; font-family: inherit; resize: vertical;
+  margin-bottom: 12px;
+}
 /* ── Top performer spotlight card ── */
 .admin-spotlight {
   display: flex; align-items: center; gap: 20px; flex-wrap: wrap;

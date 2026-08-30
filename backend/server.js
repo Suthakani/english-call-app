@@ -44,6 +44,18 @@ app.use("/api/quiz", quizRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
 app.use("/api/contact", require("./routes/contactRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
+app.get("/api/announcement", async (req, res) => {
+  try {
+    const SiteSettings = require("./models/SiteSettings");
+    const settings = await SiteSettings.findOne({ key: "site-settings" });
+    res.json({
+      message: settings?.announcementMessage || "",
+      active: settings?.announcementActive || false,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Error", error: error.message });
+  }
+});
 app.use('/audio', express.static('public/audio'));
 app.use((err, req, res, next) => {
   console.error(err.stack);

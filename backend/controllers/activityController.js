@@ -1,5 +1,4 @@
 const ActivityLog = require("../models/ActivityLog");
-
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 // Call this from wherever a "practice" event actually happens on the

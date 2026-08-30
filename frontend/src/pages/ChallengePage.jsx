@@ -293,7 +293,7 @@ export default function ChallengePage() {
       {!result ? (
         <>
         {challenge.audioUrl && (
-  <audio controls src={challenge.audioUrl} style={{ width: '100%', marginBottom: '24px' }} />
+  <audio controls src={`http://localhost:5000${challenge.audioUrl}`} style={{ width: '100%', marginBottom: '24px' }} />
 )}
           {challenge.questions.map(q => {
             const isListening = listeningId === q.id;

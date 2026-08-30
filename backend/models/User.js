@@ -37,6 +37,8 @@ quizLevels: {
   pronunciation: { type: Number, default: 1 },
   "daily-practice": { type: Number, default: 1 },
 },
+wonCycles: [{ type: Number }],
+unseenWinCycle: { type: Number, default: null },
 lastActiveDate: { type: Date, default: null },
 streakFreezeCount: { type: Number, default: 1 }, // NEW — starts with 1 free freeze
 streakFreezeUsedDate: { type: String, default: null }, // NEW — YYYY-MM-DD when freeze was consumed

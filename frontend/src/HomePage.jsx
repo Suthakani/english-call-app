@@ -116,8 +116,9 @@ const wordsOfDay = [
   { word: 'Ambitious', meaning: 'having a strong desire for success', example: 'He\'s ambitious about growing his career abroad.' },
 ];
 
-const ANNOUNCEMENT_MESSAGE = "🎉 100% Free Forever — Learn English with unlimited AI conversations, no trial, no credit card, ever!";
 
+// Default fallback shown before the backend value loads (or if it fails).
+const DEFAULT_ANNOUNCEMENT = "🎉 100% Free Forever — Learn English with unlimited AI conversations, no trial, no credit card, ever!";
 const defaultAvatarFor = user => {
   if (!user) return null;
   if (user.avatarUrl) return user.avatarUrl;
@@ -242,6 +243,7 @@ export default function HomePage() {
   const [toastMsg, setToastMsg] = useState('');
   const [toastShow, setToastShow] = useState(false);
   const [announcementOpen, setAnnouncementOpen] = useState(true);
+  const [announcementMsg, setAnnouncementMsg] = useState(DEFAULT_ANNOUNCEMENT);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [openFaq, setOpenFaq] = useState(0);
   const [wordIndex, setWordIndex] = useState(0);
@@ -274,7 +276,17 @@ export default function HomePage() {
   }, []);
     // Admins never see the homepage — bounce them straight to the
   // dashboard, whether they just logged in or navigated back here.
-  
+    useEffect(() => {
+    api.get('/announcement')
+      .then(({ data }) => {
+        if (data.active && data.message) {
+          setAnnouncementMsg(data.message);
+        } else {
+          setAnnouncementOpen(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     const onScroll = () => {
       setScrolled(window.scrollY > 50);
@@ -546,7 +558,7 @@ const handleCategoryClick = slug => {
       {announcementOpen && (
         <div className="announcement-bar">
           <Icon name="megaphone" size={16} />
-          <span>{ANNOUNCEMENT_MESSAGE}</span>
+          <span>{announcementMsg}</span>
           <button className="announcement-close" onClick={() => setAnnouncementOpen(false)} aria-label="Dismiss announcement">
             <Icon name="x" size={14} />
           </button>
