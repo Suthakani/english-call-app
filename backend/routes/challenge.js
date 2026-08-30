@@ -114,7 +114,7 @@ router.post('/:slug/submit', requireAuth, async (req, res) => {
     user: req.user.id, date: todayStr(), slug,
     answers, score, maxScore, passed, badgeAwarded,
   });
-  const pointsEarned = score * 2;
+  const pointsEarned = score * 10;
 await require('../models/User').findByIdAndUpdate(req.user.id, { $inc: { points: pointsEarned } });
 
 res.json({ score, maxScore, passed, badgeAwarded, feedback, pointsEarned });

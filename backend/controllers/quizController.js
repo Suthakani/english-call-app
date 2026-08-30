@@ -105,9 +105,10 @@ const checkQuizAnswer = async (req, res) => {
   const isCorrect = isAnswerCorrect(userAnswer, question.answer);
 
   // Award 2 points for each correct answer.
-  if (isCorrect && req.user) {
-    await User.findByIdAndUpdate(req.user._id, { $inc: { points: 2 } });
-  }
+  // Award 10 points for each correct answer.
+if (isCorrect && req.user) {
+  await User.findByIdAndUpdate(req.user._id, { $inc: { points: 10 } });
+}
 
   res.json({
     correct: isCorrect,

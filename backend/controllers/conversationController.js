@@ -183,7 +183,7 @@ const trackCategoryProgress = async (userId, categoryKey) => {
       user.categoryProgress.push({ category: categoryKey, turnsCompleted: 1, lastPracticed: new Date() });
     }
     user.totalSessions += 1;
-    user.points = (user.points || 0) + 1;   // NEW — +1 point per conversation turn
+    user.points = (user.points || 0) + 10;   // NEW — +10 points per conversation turn
     await user.save();
   } catch (err) {
     console.error("Failed to track category progress:", err);

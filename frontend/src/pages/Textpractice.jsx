@@ -25,8 +25,7 @@ const category = rawCategory === "daily-practice" ? "dailyPractice" : rawCategor
   const [viewingLevel, setViewingLevel] = useState(1); // level currently being played
 
   const level = isLeveled ? viewingLevel : (user?.level || "basic");
-  // Add this derived value near your other consts (after `level` is defined):
-const certificateEarned = isLeveled && finished && viewingLevel === totalLevels;
+ 
   const [questions, setQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(0);
@@ -37,7 +36,7 @@ const certificateEarned = isLeveled && finished && viewingLevel === totalLevels;
   const [finished, setFinished] = useState(false);
   const [checking, setChecking] = useState(false);
   const [advancing, setAdvancing] = useState(false);
-
+   const certificateEarned = isLeveled && finished && viewingLevel === totalLevels;
   useEffect(() => {
     setLoading(true);
     api.get(`/quiz/${category}/${level}`)
