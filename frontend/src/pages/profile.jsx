@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import './profile.css';
 import BottomNav from '../components/BottomNav.jsx';
 import AvatarBuilder from '../components/AvatarBuilder.jsx';
+import ShareCardModal from '../components/ShareCardModal.jsx';
 import ReactDOMServer from 'react-dom/server';
 import { BigHead } from '@bigheads/core';
 // Reuses the same lightweight lucide-style Icon renderer approach as homepage.jsx.
@@ -256,6 +257,7 @@ export default function Profile() {
   const [editingDetails, setEditingDetails] = useState(false);
 const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 const [showAvatarBuilder, setShowAvatarBuilder] = useState(false);
+const [showShareModal, setShowShareModal] = useState(false);
 const [avatarConfig, setAvatarConfig] = useState(null);
 
 const handleCustomAvatarSave = async (config) => {
@@ -615,6 +617,15 @@ const handleCustomAvatarSave = async (config) => {
     </div>
   </div>
 )}
+      {showShareModal && (
+        <ShareCardModal
+          user={profile}
+          streakDays={progress?.streakDays ?? 0}
+          longestStreak={personalBests.longestStreak ?? 0}
+          badges={CHALLENGE_BADGES.map(b => ({ ...b, earned: earnedSlugs.has(b.slug) }))}
+          onClose={() => setShowShareModal(false)}
+        />
+      )}
       <div className="profile-tabs">
         {TABS.map(t => (
           <button
@@ -629,7 +640,7 @@ const handleCustomAvatarSave = async (config) => {
 
       {activeTab === 'overview' && (
         <div className="profile-section-grid" key="overview">
-                    <div className="profile-card">
+                              <div className="profile-card">
   <div className="profile-card-title"><Icon name="flame" size={18} /> Streak</div>
   <div className="profile-streak-num">{progress?.streakDays ?? 0}</div>
   <div className="profile-card-sub freeze-sub-row">
@@ -645,6 +656,9 @@ const handleCustomAvatarSave = async (config) => {
       </span>
     </span>
   </div>
+  <button className="profile-share-btn" onClick={() => setShowShareModal(true)}>
+    📤 Share Progress
+  </button>
 </div>
           <div className="profile-card">
             <div className="profile-card-title"><Icon name="check-circle" size={18} /> Lessons Completed</div>

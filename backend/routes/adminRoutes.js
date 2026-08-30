@@ -16,6 +16,8 @@ const {
   getDauTrend,
   getLanguageBreakdown,
   getLoginMethodSplit,
+  sendReminderToUser,
+  sendReminderBulk,
 } = require("../controllers/adminController");
 
 router.get("/overview", protect, isAdmin, getOverview);
@@ -34,5 +36,9 @@ router.get("/level-test-stats", protect, isAdmin, getLevelTestStats);
 router.get("/dau-trend", protect, isAdmin, getDauTrend);
 router.get("/language-breakdown", protect, isAdmin, getLanguageBreakdown);
 router.get("/login-method-split", protect, isAdmin, getLoginMethodSplit);
+
+// ── Re-engagement reminders ──
+router.post("/send-reminder/:userId", protect, isAdmin, sendReminderToUser);
+router.post("/send-reminders-bulk", protect, isAdmin, sendReminderBulk);
 
 module.exports = router;

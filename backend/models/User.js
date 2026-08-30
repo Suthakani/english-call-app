@@ -40,6 +40,7 @@ lastActiveDate: { type: Date, default: null },
 streakFreezeCount: { type: Number, default: 1 }, // NEW — starts with 1 free freeze
 streakFreezeUsedDate: { type: String, default: null }, // NEW — YYYY-MM-DD when freeze was consumed
 lastWeeklyFreezeAwardWeek: { type: String, default: null },
+lastReminderSentAt: { type: Date, default: null },
     // Per-category practice tracking, so the profile page can show
     // "what you've learned" and recommend categories not tried yet.
     categoryProgress: [

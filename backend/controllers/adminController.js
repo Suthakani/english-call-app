@@ -4,7 +4,7 @@ const ContactSubmission = require("../models/ContactSubmission");
 const ChallengeCompletion = require("../models/ChallengeCompletion");
 const ConversationSession = require("../models/ConversationSession");
 const VocabWord = require("../models/VocabWord");
-
+const { sendReminderEmail } = require("../utils/sendEmail");
 const getOverview = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments({ isVerified: true });
@@ -89,7 +89,7 @@ const getAllUsersWithSearch = async (req, res) => {
       .sort({ [sortBy]: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .select("username email streakDays totalSessions level createdAt lastActiveDate")
+      .select("username email streakDays totalSessions points level createdAt lastActiveDate")
       .lean();
 
     const total = await User.countDocuments(filter);
@@ -130,8 +130,8 @@ const getAtRiskUsers = async (req, res) => {
 
     // Users who have practiced at all
     const activeUsers = await User.find({ isVerified: true, totalSessions: { $gt: 0 } })
-      .select("username email streakDays totalSessions level lastActiveDate")
-      .lean();
+  .select("username email streakDays totalSessions level lastActiveDate lastReminderSentAt")
+  .lean();
 
     if (!activeUsers.length) return res.json([]);
 
@@ -319,7 +319,67 @@ const getLoginMethodSplit = async (req, res) => {
     res.status(500).json({ message: "Error loading login method split", error: error.message });
   }
 };
+const REMINDER_COOLDOWN_HOURS = 24;
 
+// @route POST /api/admin/send-reminder/:userId
+const sendReminderToUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.lastReminderSentAt) {
+      const hoursSince = (Date.now() - new Date(user.lastReminderSentAt).getTime()) / (1000 * 60 * 60);
+      if (hoursSince < REMINDER_COOLDOWN_HOURS) {
+        const hoursLeft = Math.ceil(REMINDER_COOLDOWN_HOURS - hoursSince);
+        return res.status(429).json({ message: `Reminder already sent recently. Try again in ${hoursLeft}h.` });
+      }
+    }
+
+    await sendReminderEmail(user.email, user.username, user.streakDays);
+    user.lastReminderSentAt = new Date();
+    await user.save();
+
+    res.json({ message: "Reminder sent", lastReminderSentAt: user.lastReminderSentAt });
+  } catch (error) {
+    res.status(500).json({ message: "Error sending reminder", error: error.message });
+  }
+};
+
+// @route POST /api/admin/send-reminders-bulk  { userIds: [...] }
+const sendReminderBulk = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ message: "userIds array required" });
+    }
+
+    const users = await User.find({ _id: { $in: userIds } });
+    const now = Date.now();
+    const results = { sent: 0, skipped: 0 };
+
+    for (const user of users) {
+      if (user.lastReminderSentAt) {
+        const hoursSince = (now - new Date(user.lastReminderSentAt).getTime()) / (1000 * 60 * 60);
+        if (hoursSince < REMINDER_COOLDOWN_HOURS) {
+          results.skipped++;
+          continue;
+        }
+      }
+      try {
+        await sendReminderEmail(user.email, user.username, user.streakDays);
+        user.lastReminderSentAt = new Date();
+        await user.save();
+        results.sent++;
+      } catch (err) {
+        results.skipped++;
+      }
+    }
+
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ message: "Error sending bulk reminders", error: error.message });
+  }
+};
 module.exports = {
   getOverview,
   getCategoryPopularity,
@@ -335,4 +395,6 @@ module.exports = {
   getDauTrend,
   getLanguageBreakdown,
   getLoginMethodSplit,
+  sendReminderToUser,
+  sendReminderBulk,
 };

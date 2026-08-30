@@ -15,15 +15,16 @@ const TABS = [
 // Converts the users array to a CSV string and triggers a browser download.
 // No library needed — Excel/Sheets open plain CSV fine.
 function downloadUsersCSV(users) {
-  const headers = ["Username", "Email", "Streak", "Sessions", "Level", "Joined"];
-  const rows = users.map((u) => [
-    u.username,
-    u.email,
-    u.streakDays,
-    u.totalSessions,
-    u.level,
-    new Date(u.createdAt).toLocaleDateString(),
-  ]);
+  const headers = ["Username", "Email", "Streak", "Sessions", "Points", "Level", "Joined"];
+const rows = users.map((u) => [
+  u.username,
+  u.email,
+  u.streakDays,
+  u.totalSessions,
+  u.points ?? 0,
+  u.level,
+  new Date(u.createdAt).toLocaleDateString(),
+]);
   const csvContent = [headers, ...rows]
     .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
     .join("\n");
@@ -49,7 +50,8 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [selectedUserId, setSelectedUserId] = useState(null);
-
+  const [reminderStatus, setReminderStatus] = useState({}); // { [userId]: 'sending' | 'sent' | 'error' }
+const [bulkSending, setBulkSending] = useState(false);
   // ── New data: engagement + insights + messages ──
   const [challengeStats, setChallengeStats] = useState(null);
   const [dauTrend, setDauTrend] = useState([]);
@@ -127,7 +129,41 @@ export default function AdminDashboard() {
       })
       .catch(() => {});
   };
+    const sendReminder = (userId) => {
+    setReminderStatus((prev) => ({ ...prev, [userId]: "sending" }));
+    api
+      .post(`/admin/send-reminder/${userId}`)
+      .then(() => {
+        setReminderStatus((prev) => ({ ...prev, [userId]: "sent" }));
+        setAtRisk((prev) =>
+          prev.map((u) => (u._id === userId ? { ...u, lastReminderSentAt: new Date().toISOString() } : u))
+        );
+      })
+      .catch((err) => {
+        setReminderStatus((prev) => ({ ...prev, [userId]: "error" }));
+        alert(err.response?.data?.message || "Could not send reminder");
+      });
+  };
 
+  const sendBulkReminders = () => {
+    if (atRisk.length === 0) return;
+    setBulkSending(true);
+    api
+      .post("/admin/send-reminders-bulk", { userIds: atRisk.map((u) => u._id) })
+      .then(({ data }) => {
+        alert(`Sent: ${data.sent}, Skipped (recently sent): ${data.skipped}`);
+        const now = new Date().toISOString();
+        setAtRisk((prev) => prev.map((u) => ({ ...u, lastReminderSentAt: now })));
+      })
+      .catch(() => alert("Bulk send failed"))
+      .finally(() => setBulkSending(false));
+  };
+
+  const reminderCooldownActive = (lastSentAt) => {
+    if (!lastSentAt) return false;
+    const hoursSince = (Date.now() - new Date(lastSentAt).getTime()) / (1000 * 60 * 60);
+    return hoursSince < 24;
+  };
   return (
     <div className="admin-page">
       <div className="admin-bg-blobs">
@@ -236,6 +272,7 @@ export default function AdminDashboard() {
                         <th>Email</th>
                         <th>Streak</th>
                         <th>Sessions</th>
+                        <th>Points</th>
                         <th>Level</th>
                         <th>Joined</th>
                       </tr>
@@ -256,6 +293,7 @@ export default function AdminDashboard() {
                           <td>{u.email}</td>
                           <td>{u.streakDays} 🔥</td>
                           <td>{u.totalSessions}</td>
+                          <td>{u.points ?? 0} ⭐</td>
                           <td><span className="admin-level-pill">{u.level}</span></td>
                           <td>{new Date(u.createdAt).toLocaleDateString()}</td>
                         </tr>
@@ -299,13 +337,22 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* ── AT RISK ── */}
+                    {/* ── AT RISK ── */}
           {activeTab === "atrisk" && (
             <div className="admin-tab-panel">
-              <h2 className="admin-section-title">At-Risk Users</h2>
-              <p className="admin-panel-desc">
-                Users who practiced before but haven't shown up in 3+ days — good candidates for a nudge.
-              </p>
+              <div className="admin-panel-header">
+                <div>
+                  <h2 className="admin-section-title">At-Risk Users</h2>
+                  <p className="admin-panel-desc">
+                    Users who practiced before but haven't shown up in 3+ days — good candidates for a nudge.
+                  </p>
+                </div>
+                {atRisk.length > 0 && (
+                  <button className="admin-export-btn" onClick={sendBulkReminders} disabled={bulkSending}>
+                    {bulkSending ? "Sending…" : `✉ Send Reminder to All (${atRisk.length})`}
+                  </button>
+                )}
+              </div>
               {atRisk.length === 0 ? (
                 <div className="admin-empty">🎉 No at-risk users right now — everyone's engaged!</div>
               ) : (
@@ -319,19 +366,37 @@ export default function AdminDashboard() {
                         <th>Last Streak</th>
                         <th>Total Sessions</th>
                         <th>Level</th>
+                        <th>Reminder</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {atRisk.map((u) => (
-                        <tr key={u._id}>
-                          <td className="admin-table-highlight">{u.username}</td>
-                          <td>{u.email}</td>
-                          <td><span className="admin-risk-pill">{u.daysInactive}d ago</span></td>
-                          <td>{u.streakDays} 🔥</td>
-                          <td>{u.totalSessions}</td>
-                          <td><span className="admin-level-pill">{u.level}</span></td>
-                        </tr>
-                      ))}
+                      {atRisk.map((u) => {
+                        const status = reminderStatus[u._id];
+                        const onCooldown = reminderCooldownActive(u.lastReminderSentAt);
+                        return (
+                          <tr key={u._id}>
+                            <td className="admin-table-highlight">{u.username}</td>
+                            <td>{u.email}</td>
+                            <td><span className="admin-risk-pill">{u.daysInactive}d ago</span></td>
+                            <td>{u.streakDays} 🔥</td>
+                            <td>{u.totalSessions}</td>
+                            <td><span className="admin-level-pill">{u.level}</span></td>
+                            <td>
+                              {status === "sent" || onCooldown ? (
+                                <span className="admin-level-pill">✓ Sent</span>
+                              ) : (
+                                <button
+                                  className="admin-export-btn"
+                                  onClick={() => sendReminder(u._id)}
+                                  disabled={status === "sending"}
+                                >
+                                  {status === "sending" ? "Sending…" : "✉ Remind"}
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
