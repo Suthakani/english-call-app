@@ -27,6 +27,7 @@ const userSchema = new mongoose.Schema(
     avatarConfig: { type: mongoose.Schema.Types.Mixed, default: null }, // NEW — react-nice-avatar customization object
 
     streakDays: { type: Number, default: 0 },
+    
 points: { type: Number, default: 0 },
 quizLevels: {
   grammar: { type: Number, default: 1 },
@@ -38,7 +39,7 @@ quizLevels: {
 lastActiveDate: { type: Date, default: null },
 streakFreezeCount: { type: Number, default: 1 }, // NEW — starts with 1 free freeze
 streakFreezeUsedDate: { type: String, default: null }, // NEW — YYYY-MM-DD when freeze was consumed
-
+lastWeeklyFreezeAwardWeek: { type: String, default: null },
     // Per-category practice tracking, so the profile page can show
     // "what you've learned" and recommend categories not tried yet.
     categoryProgress: [

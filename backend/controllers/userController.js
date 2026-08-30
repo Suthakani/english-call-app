@@ -12,6 +12,13 @@ const toDateOnly = (d) => {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+const MAX_FREEZE_CAP = 3;
+
+// Milestones awarded once per streak "run" — when streakDays lands
+// exactly on one of these numbers, grant the freeze bonus, capped so
+// stockpiling freezes doesn't remove all risk from missing a day.
+const STREAK_MILESTONES = { 7: 1, 30: 2, 100: 5 };
+
 const touchStreak = async (user) => {
   const today = toDateOnly(new Date());
 
@@ -30,9 +37,6 @@ const touchStreak = async (user) => {
   if (diffDays === 1) {
     user.streakDays += 1;
   } else if (diffDays === 2 && user.streakFreezeCount > 0) {
-    // Missed exactly one day — auto-consume a freeze to protect the streak
-    // instead of resetting it. Only covers a single missed day; a 2+ day
-    // gap still resets normally.
     user.streakFreezeCount -= 1;
     user.streakFreezeUsedDate = today.toISOString().slice(0, 10);
     user.streakDays += 1;
@@ -40,11 +44,17 @@ const touchStreak = async (user) => {
     user.streakDays = 1; // streak broken, restart
   }
 
+  // Award a milestone freeze bonus the day the streak lands exactly on
+  // 7 / 30 / 100, respecting the max stockpile cap.
+  const bonus = STREAK_MILESTONES[user.streakDays];
+  if (bonus) {
+    user.streakFreezeCount = Math.min(MAX_FREEZE_CAP, (user.streakFreezeCount || 0) + bonus);
+  }
+
   user.lastActiveDate = today;
   await user.save();
   return user;
 };
-
 const getProfile = async (req, res) => {
   try {
     const user = await touchStreak(req.user);
@@ -149,6 +159,23 @@ const getProgress = async (req, res) => {
 
    const weeklyCompleted = await getWeeklyCompletedCount(user._id);
 
+    // Award a freeze bonus the first time the user's weekly goal is fully
+    // met this week (weekStartStr keeps this idempotent — won't re-award
+    // on every subsequent request the same week).
+    const dayOfWeek = new Date().getDay();
+    const weekStart = new Date();
+    weekStart.setDate(weekStart.getDate() - dayOfWeek);
+    const weekStartStr = weekStart.toISOString().slice(0, 10);
+
+    if (
+      weeklyCompleted >= user.weeklyGoalTarget &&
+      user.lastWeeklyFreezeAwardWeek !== weekStartStr &&
+      user.streakFreezeCount < MAX_FREEZE_CAP
+    ) {
+      user.streakFreezeCount = Math.min(MAX_FREEZE_CAP, user.streakFreezeCount + 1);
+      user.lastWeeklyFreezeAwardWeek = weekStartStr;
+      await user.save();
+    }
     res.json({
       streakDays: user.streakDays,
       lessonsCompleted: user.categoryProgress.filter((c) => c.turnsCompleted >= TURNS_TO_COMPLETE).length,
@@ -157,6 +184,7 @@ const getProgress = async (req, res) => {
       recommendedNext,
       weeklyGoal: { completed: weeklyCompleted, target: user.weeklyGoalTarget },
       personalBests: user.personalBests,
+      streakFreezeCount: user.streakFreezeCount,
     });
   } catch (error) {
     console.error(error);
