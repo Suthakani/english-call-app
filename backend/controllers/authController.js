@@ -162,6 +162,7 @@ const googleLogin = async (req, res) => {
         password: randomPassword,
         isVerified: true, // Google already verified this email
         avatarUrl: photoUrl || "",
+        authProvider: "google",
       });
     }
 

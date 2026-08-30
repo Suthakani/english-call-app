@@ -1,4 +1,5 @@
 const nodemailer = require("nodemailer");
+const ContactSubmission = require("../models/ContactSubmission");
 
 const sendContactMessage = async (req, res) => {
   try {
@@ -7,8 +8,17 @@ const sendContactMessage = async (req, res) => {
       return res.status(400).json({ message: "Please fill in the required fields" });
     }
 
-    console.log("EMAIL_USER:", process.env.EMAIL_USER);
-    console.log("EMAIL_PASS length:", process.env.EMAIL_PASS?.length);
+    // Save first — even if the email step below fails (e.g. transient
+    // SMTP hiccup), the message is still safely recorded and visible in
+    // the Admin Dashboard's Messages tab, so nothing gets silently lost.
+    const submission = await ContactSubmission.create({
+      firstName,
+      lastName,
+      email,
+      subject,
+      message,
+      status: "new",
+    });
 
     const transporter = nodemailer.createTransport({
       host: process.env.EMAIL_HOST,
@@ -29,7 +39,7 @@ const sendContactMessage = async (req, res) => {
       html: `<p><strong>From:</strong> ${firstName} ${lastName || ""} (${email})</p><p>${message}</p>`,
     });
 
-    res.json({ message: "Message sent" });
+    res.json({ message: "Message sent", submissionId: submission._id });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Could not send message", error: error.message });

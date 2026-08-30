@@ -6,6 +6,7 @@ const userSchema = new mongoose.Schema(
     username: { type: String, required: true, unique: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
+    authProvider: { type: String, enum: ["email", "google"], default: "email" },
     nativeLanguage: { type: String, default: "Tamil" },
 
     isVerified: { type: Boolean, default: false },
