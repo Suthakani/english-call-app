@@ -629,11 +629,21 @@ const handleCustomAvatarSave = async (config) => {
 
       {activeTab === 'overview' && (
         <div className="profile-section-grid" key="overview">
-          <div className="profile-card">
+                    <div className="profile-card">
   <div className="profile-card-title"><Icon name="flame" size={18} /> Streak</div>
   <div className="profile-streak-num">{progress?.streakDays ?? 0}</div>
-  <div className="profile-card-sub">
-    day streak · ❄️ {profile?.streakFreezeCount ?? 0} freeze{profile?.streakFreezeCount === 1 ? '' : 's'} left
+  <div className="profile-card-sub freeze-sub-row">
+    <span>
+      day streak · ❄️ {profile?.streakFreezeCount ?? 0} freeze{profile?.streakFreezeCount === 1 ? '' : 's'} left
+    </span>
+    <span className="freeze-info-wrap">
+      <span className="freeze-info-icon" tabIndex={0}>ⓘ</span>
+      <span className="freeze-info-tooltip">
+        Earn freezes automatically: +1 at a 7-day streak, +2 at 30-day, +5 at 100-day.
+        Also earn +1 whenever you hit your weekly goal. A freeze auto-protects
+        your streak if you miss exactly one day. Max 3 freezes stored at once.
+      </span>
+    </span>
   </div>
 </div>
           <div className="profile-card">

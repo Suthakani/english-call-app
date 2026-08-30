@@ -1052,3 +1052,63 @@
   .vocab-grid { grid-template-columns: 1fr; }
   .medal-grid { justify-content: center; }
 }
+.freeze-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.freeze-info-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.freeze-info-icon {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary, #8a978e);
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.15s ease;
+}
+
+.freeze-info-icon:hover,
+.freeze-info-icon:focus {
+  color: #10b981;
+  outline: none;
+}
+
+.freeze-info-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: 220px;
+  background: #0e1f19;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #cfd8d3;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 20;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.freeze-info-wrap:hover .freeze-info-tooltip,
+.freeze-info-icon:focus + .freeze-info-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
