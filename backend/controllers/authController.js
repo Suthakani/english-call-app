@@ -1,7 +1,7 @@
 const User = require("../models/User");
 const generateToken = require("../utils/generateToken");
 const { sendVerificationEmail } = require("../utils/sendEmail");
-
+const crypto = require("crypto");
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
 // @route POST /api/auth/register
@@ -126,5 +126,59 @@ const loginUser = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+// @route POST /api/auth/google
+// Frontend already completed the Firebase popup sign-in and just hands us
+// the resulting Firebase user's email/name/photo/uid. We find-or-create a
+// matching User document and issue our own JWT, same shape as normal
+// login, so the rest of the app doesn't need to know Google was involved.
+const googleLogin = async (req, res) => {
+  try {
+    const { email, username, photoUrl, uid } = req.body;
+    if (!email || !uid) {
+      return res.status(400).json({ message: "Missing Google account info" });
+    }
 
-module.exports = { registerUser, verifyOTP, resendOTP, loginUser };
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await User.findOne({ email: normalizedEmail });
+
+    if (!user) {
+      // Password is required by the schema but Google users never use it —
+      // fill it with a long random value they'll never need to know.
+      const randomPassword = crypto.randomBytes(32).toString("hex");
+      let baseUsername = (username || normalizedEmail.split("@")[0]).replace(/[^a-zA-Z0-9]/g, "");
+      if (!baseUsername) baseUsername = "user";
+      let finalUsername = baseUsername;
+      // usernames are unique — if taken, append a short random suffix
+      let attempt = 0;
+      while (await User.findOne({ username: finalUsername })) {
+        attempt++;
+        finalUsername = `${baseUsername}${Math.random().toString(36).slice(2, 6)}`;
+        if (attempt > 5) break;
+      }
+
+      user = await User.create({
+        username: finalUsername,
+        email: normalizedEmail,
+        password: randomPassword,
+        isVerified: true, // Google already verified this email
+        avatarUrl: photoUrl || "",
+      });
+    }
+
+    res.json({
+      token: generateToken(user._id),
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        level: user.level,
+        preferredCategories: user.preferredCategories,
+        avatarUrl: user.avatarUrl,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+module.exports = { registerUser, verifyOTP, resendOTP, loginUser, googleLogin };

@@ -366,12 +366,36 @@ export default function HomePage() {
   const handleGoogleLogin = async () => {
     try {
       const result = await signInWithPopup(auth, provider);
-      console.log("SUCCESS");
-      console.log(result.user);
-      showToast("Login Successful");
+      const { data } = await api.post('/auth/google', {
+        email: result.user.email,
+        username: result.user.displayName,
+        photoUrl: result.user.photoURL,
+        uid: result.user.uid,
+      });
+      login(data.user, data.token);
+      setAuthOpen(false);
+
+      if (data.user.role === 'admin') {
+        navigate('/admin');
+        return;
+      }
+      const pendingCategory = sessionStorage.getItem('pendingCategory');
+      if (pendingCategory) {
+        sessionStorage.removeItem('pendingCategory');
+        navigate(`/call/${pendingCategory}`);
+        return;
+      }
+      const pendingPath = sessionStorage.getItem('pendingPath');
+      if (pendingPath) {
+        sessionStorage.removeItem('pendingPath');
+        navigate(pendingPath);
+        return;
+      }
+      navigate(data.user.level === 'unassigned' ? '/level-test' : '/categories');
     } catch (error) {
       console.log(error.code);
       console.log(error.message);
+      showToast('Google sign-in failed — try again');
     }
   };
 
