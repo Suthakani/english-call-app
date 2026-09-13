@@ -44,7 +44,10 @@ const socials = [
   { icon: 'github', url: 'https://github.com', label: 'GitHub' },
   { icon: 'message-circle', url: 'https://discord.com', label: 'Discord' },
 ];
-
+const teamMembers = [
+  { name: 'Suthakani T', role: 'Owner', email: 'suthakani140@gmail.com', phone: '+91 8300692164' },
+  { name: 'Krishnadevi T', role: 'Co-Owner', email: 'krishnadevicciot@gmail.com', phone: '+91 8072989291' },
+];
 const contactDetails = [
   { icon: 'mail', label: 'Email', value: 'suthakani140@gmail.com' },
   { icon: 'phone', label: 'Phone', value: '+91 8300692164' },
@@ -1174,12 +1177,26 @@ const handleFeedbackSubmit = async e => {
           <div className="contact-info-card reveal">
             <div className="contact-info-title">Let's Connect</div>
             <div className="contact-info-desc">Whether you have a question about features, how it works, or anything else, our team is ready to answer.</div>
-            {contactDetails.map((d, i) => (
-              <div className="contact-detail" key={i}>
-                <div className="contact-detail-icon"><Icon name={d.icon} size={20} /></div>
-                <div><div className="contact-detail-label">{d.label}</div><div className="contact-detail-value">{d.value}</div></div>
-              </div>
-            ))}
+            <div className="team-contacts-grid">
+  {teamMembers.map((m, i) => (
+  <div className="team-member-card" key={i}>
+    <div className="team-member-shine"></div>
+    <div className="team-avatar-circle"><Icon name="user" size={22} /></div>
+    <div className="team-member-name">{m.name}</div>
+    <div className="team-member-role">{m.role}</div>
+    <div className="team-member-detail"><Icon name="mail" size={14} /> {m.email}</div>
+    <div className="team-member-detail"><Icon name="phone" size={14} /> {m.phone}</div>
+  </div>
+))}
+</div>
+
+<div className="contact-detail">
+  <div className="contact-detail-icon"><Icon name="map-pin" size={20} /></div>
+  <div>
+    <div className="contact-detail-label">Office</div>
+    <div className="contact-detail-value">Tiruchendur, India</div>
+  </div>
+</div>
             <div className="contact-socials">
               {socials.map((s, i) => (
                 <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="social-link" title={s.label}><Icon name={s.icon} size={18} /></a>
