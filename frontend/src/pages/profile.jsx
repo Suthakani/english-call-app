@@ -688,6 +688,12 @@ const handleCustomAvatarSave = async (config) => {
             <div className="profile-leaderboard-link"><Icon name="arrow-right" size={14} /> View rankings</div>
           </div>
 
+          <div className="profile-card profile-card-clickable" onClick={() => navigate('/tournament')}>
+            <div className="profile-card-title"><Icon name="award" size={18} /> Tournaments</div>
+            <div className="profile-card-sub" style={{ marginTop: 6 }}>Weekly, monthly & yearly top-10 certificates</div>
+            <div className="profile-leaderboard-link"><Icon name="arrow-right" size={14} /> View tournaments</div>
+          </div>
+
           {/* ── NEW: Personal Best Stats ── */}
           <div className="profile-card profile-card-wide">
             <div className="profile-card-title"><Icon name="zap" size={18} /> Personal Bests</div>

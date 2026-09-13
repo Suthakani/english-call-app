@@ -52,6 +52,7 @@ championBadges: [
   },
 ],
 unseenWinCycle: { type: Number, default: null },
+lastSeenEventKey: { type: String, default: null },
 lastActiveDate: { type: Date, default: null },
 streakFreezeCount: { type: Number, default: 1 }, // NEW — starts with 1 free freeze
 streakFreezeUsedDate: { type: String, default: null }, // NEW — YYYY-MM-DD when freeze was consumed
@@ -89,8 +90,11 @@ lastReminderSentAt: { type: Date, default: null },
 certificates: [
   {
     category: { type: String }, // now optional — only set for quiz-level certs
-    type: { type: String, enum: ["quiz", "champion"], default: "quiz" }, // NEW
-    cycleIndex: { type: Number }, // NEW — set only when type === "champion"
+    type: { type: String, enum: ["quiz", "champion", "tournament", "hall-of-fame", "event"], default: "quiz" }, // NEW
+    cycleIndex: { type: Number }, // set only when type === "champion"
+    periodType: { type: String }, // set only when type === "tournament" ("weekly"/"monthly"/"yearly")
+    periodKey: { type: String }, // set for type === "tournament" or "hall-of-fame"
+    rank: { type: Number }, // set for type === "tournament" (1-10) or "hall-of-fame" (always 1)
     issuedAt: { type: Date, default: Date.now },
     // NEW — stable, unique certificate ID used for QR-code verification.
     // Computed once at issuance (see quizController.completeLevel) and

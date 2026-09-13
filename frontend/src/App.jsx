@@ -13,9 +13,12 @@ import Leaderboard from "./pages/Leaderboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminRoute from "./components/AdminRoute.jsx";
 import MasteryReward from "./pages/MasteryReward.jsx";
+import TournamentPage from "./pages/TournamentPage.jsx";
+import HallOfFame from "./pages/HallOfFame.jsx";
 import VerifyCertificate from "./pages/VerifyCertificate.jsx";
 import Winners from './pages/Winners.jsx';
 import WinnerPopup from './pages/WinnerPopup.jsx';
+import EventPosterPopup from './pages/EventPosterPopup.jsx';
 import FeaturesDetailPage from "./pages/FeaturesDetailPage.jsx";
 import CategoriesDetailPage from "./pages/CategoriesDetailPage.jsx";
 import HowItWorksDetailPage from "./pages/HowItWorksDetailPage.jsx";
@@ -36,6 +39,7 @@ export default function App() {
   return (
     <>
       <WinnerPopup />
+      <EventPosterPopup />
       <Routes>
         {/* ── Landing Page (first page users see) ── */}
         <Route path="/" element={<HomePage />} />
@@ -120,6 +124,22 @@ export default function App() {
           element={
             <Protected>
               <Leaderboard />
+            </Protected>
+          }
+        />
+        <Route
+          path="/tournament"
+          element={
+            <Protected>
+              <TournamentPage />
+            </Protected>
+          }
+        />
+        <Route
+          path="/hall-of-fame"
+          element={
+            <Protected>
+              <HallOfFame />
             </Protected>
           }
         />

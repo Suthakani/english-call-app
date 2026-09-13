@@ -46,6 +46,8 @@ app.use("/api/conversation", conversationRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/quiz", quizRoutes);
 app.use("/api/leaderboard", leaderboardRoutes);
+app.use("/api/tournament", require("./routes/tournamentRoutes"));
+app.use("/api/event", require("./routes/eventRoutes"));
 app.use("/api/contact", require("./routes/contactRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/qna", require("./routes/qnaRoutes"));

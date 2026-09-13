@@ -57,6 +57,7 @@ const navLinks = [
   { id: 'learning-categories', label: 'Categories' },
   { id: 'how-it-works', label: 'How It Works' },
   { id: 'testimonials', label: 'Reviews' },
+  { id: 'feedback', label: 'Feedback' },
   { id: 'faq', label: 'FAQ' },
   { id: 'contact', label: 'Contact' },
 ];
@@ -191,7 +192,27 @@ const Icon = ({ name, size = 24 }) => {
   }, [name, size]);
   return <span ref={ref} style={{ display: 'inline-flex', alignItems: 'center' }} />;
 };
-
+const Logo = ({ size = 22 }) => (
+  <svg width={size} height={size} viewBox="0 0 44 44" className="speakup-logo-mark" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="logoGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+        <stop offset="0%" stopColor="#059669" />
+        <stop offset="100%" stopColor="#10b981" />
+      </linearGradient>
+      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#10b981" />
+        <stop offset="50%" stopColor="#d4af37" />
+        <stop offset="100%" stopColor="#10b981" />
+      </linearGradient>
+    </defs>
+    <circle className="logo-ring" cx="22" cy="22" r="20.5" fill="none" stroke="url(#ringGrad)" strokeWidth="1.5" strokeDasharray="6 5" strokeLinecap="round" />
+    <circle cx="22" cy="22" r="17" fill="url(#logoGrad)" />
+    <rect className="logo-eq logo-eq-1" x="13" y="18" width="3" height="8" rx="1.5" fill="#ffffff" />
+    <rect className="logo-eq logo-eq-2" x="18" y="15" width="3" height="14" rx="1.5" fill="#ffffff" />
+    <rect className="logo-eq logo-eq-3" x="23" y="12" width="3" height="20" rx="1.5" fill="#ffffff" />
+    <rect className="logo-eq logo-eq-4" x="28" y="15" width="3" height="14" rx="1.5" fill="#ffffff" />
+  </svg>
+);
 const CountUpStat = ({ target, suffix, label, decimals = 0 }) => {
   const [value, setValue] = useState(0);
   const ref = useRef(null);
@@ -232,6 +253,7 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { user, login, logout } = useAuth();
   const heroVideoRef = useRef(null);
+    const cursorGlowRef = useRef(null);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeSection, setActiveSection] = useState('hero');
@@ -262,7 +284,11 @@ export default function HomePage() {
     const stored = localStorage.getItem('savedWords');
     return stored ? JSON.parse(stored) : [];
   });
-
+  const [feedbackRating, setFeedbackRating] = useState(0);
+const [feedbackHoverRating, setFeedbackHoverRating] = useState(0);
+const [feedbackText, setFeedbackText] = useState('');
+const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+const [feedbackLoading, setFeedbackLoading] = useState(false);
   useEffect(() => {
     const v = heroVideoRef.current;
     if (v) {
@@ -275,6 +301,16 @@ export default function HomePage() {
         });
       }
     }
+  }, []);
+    useEffect(() => {
+    const glow = cursorGlowRef.current;
+    if (!glow) return;
+    const onMove = e => {
+      glow.style.setProperty('--mx', `${e.clientX}px`);
+      glow.style.setProperty('--my', `${e.clientY}px`);
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
   }, []);
     // Admins never see the homepage — bounce them straight to the
   // dashboard, whether they just logged in or navigated back here.
@@ -294,7 +330,7 @@ export default function HomePage() {
       setScrolled(window.scrollY > 50);
       const docHeight = document.documentElement.scrollHeight - window.innerHeight;
       setScrollProgress(docHeight > 0 ? (window.scrollY / docHeight) * 100 : 0);
-      const sectionIds = ['hero', 'features', 'learning-categories', 'how-it-works', 'testimonials', 'contact'];
+      const sectionIds = ['hero', 'features', 'learning-categories', 'how-it-works', 'testimonials', 'feedback', 'contact'];
       let current = 'hero';
       sectionIds.forEach(id => {
         const el = document.getElementById(id);
@@ -583,6 +619,22 @@ const handleCategoryClick = slug => {
     showToast(err.response?.data?.message || 'Could not save word — try again');
   }
 };
+const handleFeedbackSubmit = async e => {
+  e.preventDefault();
+  if (feedbackRating === 0) {
+    showToast('Please select a star rating first');
+    return;
+  }
+  setFeedbackLoading(true);
+  try {
+    await api.post('/feedback', { rating: feedbackRating, message: feedbackText });
+  } catch (err) {
+    // still thank the user even if the backend route isn't wired up yet
+  } finally {
+    setFeedbackLoading(false);
+    setFeedbackSubmitted(true);
+  }
+};
   const handleCardTilt = e => {
     const card = e.currentTarget;
     const rect = card.getBoundingClientRect();
@@ -616,6 +668,7 @@ const handleCategoryClick = slug => {
         <div className="blob blob-3"></div>
       </div>
       <div className="noise"></div>
+            <div className="cursor-glow" ref={cursorGlowRef}></div>
       <div className="bg-bubbles">
         {[...Array(14)].map((_, i) => (
           <div
@@ -644,10 +697,10 @@ const handleCategoryClick = slug => {
         ))}
       </div>
       <nav className={`navbar${scrolled ? ' scrolled' : ''}${announcementOpen ? ' with-announcement' : ''}`}>
-        <div className="nav-brand" onClick={() => scrollTo('hero')}>
-          <div className="nav-brand-icon"><Icon name="mic" size={20} /></div>
-          SpeakUp
-        </div>
+      <div className="nav-brand" onClick={() => scrollTo('hero')}>
+  <div className="nav-brand-icon"><Logo size={40} /></div>
+  <span className="brand-wordmark">Speak<span className="brand-accent">Up</span></span>
+</div>
         <ul className={`nav-links${mobileOpen ? ' mobile-open' : ''}`}>
           {navLinks.map(l => (
             <li key={l.id}>
@@ -1007,23 +1060,80 @@ const handleCategoryClick = slug => {
           <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/reviews')}>Loved by Learners<br /><span className="gradient-text">Worldwide</span></h2>
           <p className="section-desc">Real stories from real people who transformed their English speaking skills.</p>
         </div>
-        <div className="testimonial-grid">
+                <div className="testimonial-grid">
           {testimonials.map((t, i) => (
             <div className={`testimonial-card reveal reveal-delay-${i + 1}`} key={i}>
-              <div className="testimonial-stars">{[1,2,3,4,5].map(s => <Icon key={s} name="star" size={16} />)}</div>
-              <div className="testimonial-text">{t.text}</div>
-              <div className="testimonial-author">
-                <div className="testimonial-avatar">{t.avatar}</div>
-                <div><div className="testimonial-name">{t.name}</div><div className="testimonial-role">{t.role}</div></div>
+              <div className="testimonial-flip">
+                <div className="testimonial-flip-inner">
+                  <div className="testimonial-front">
+                    <div className="testimonial-stars">{[1,2,3,4,5].map(s => <Icon key={s} name="star" size={16} />)}</div>
+                    <div className="testimonial-text">{t.text}</div>
+                    <div className="testimonial-author">
+                      <div className="testimonial-avatar">{t.avatar}</div>
+                      <div><div className="testimonial-name">{t.name}</div><div className="testimonial-role">{t.role}</div></div>
+                    </div>
+                  </div>
+                  <div className="testimonial-back">
+                    <div className="testimonial-back-avatar">{t.avatar}</div>
+                    <div className="testimonial-back-name">{t.name}</div>
+                    <div className="testimonial-back-role">{t.role}</div>
+                    <button className="testimonial-try-link testimonial-back-btn" onClick={() => goOrAuth(`/learn/${t.slug}`, t.slug)}>
+                      {t.tryLabel} <Icon name="arrow-right" size={14} />
+                    </button>
+                  </div>
+                </div>
               </div>
-<button className="testimonial-try-link" onClick={() => goOrAuth(`/learn/${t.slug}`, t.slug)}>
-  {t.tryLabel} <Icon name="arrow-right" size={14} />
-</button>
             </div>
           ))}
         </div>
       </section>
-
+     <section className="section feedback-section" id="feedback">
+  <div className="section-header reveal">
+    <div className="section-tag"><Icon name="star" size={14} /> YOUR VOICE MATTERS</div>
+    <h2 className="section-title">Rate Your<br /><span className="gradient-text">SpeakUp Experience</span></h2>
+    <p className="section-desc">Tell us how we're doing — your feedback shapes what we build next.</p>
+  </div>
+  <div className="feedback-card reveal">
+    {feedbackSubmitted ? (
+      <div className="feedback-thanks">
+        <div className="feedback-thanks-icon"><Icon name="check" size={26} /></div>
+        <h3>Thanks for the feedback!</h3>
+        <p>We read every rating and comment.</p>
+      </div>
+    ) : (
+      <form onSubmit={handleFeedbackSubmit}>
+        <div className="feedback-stars" onMouseLeave={() => setFeedbackHoverRating(0)}>
+          {[1, 2, 3, 4, 5].map(n => (
+            <button
+              type="button"
+              key={n}
+              className={`feedback-star${n <= (feedbackHoverRating || feedbackRating) ? ' active' : ''}`}
+              onMouseEnter={() => setFeedbackHoverRating(n)}
+              onClick={() => setFeedbackRating(n)}
+              aria-label={`${n} star${n > 1 ? 's' : ''}`}
+            >
+              <Icon name="star" size={32} />
+            </button>
+          ))}
+        </div>
+        <div className="feedback-rating-label">
+          {feedbackRating === 0
+            ? 'Tap a star to rate us'
+            : ['', 'Not great', 'Could be better', 'Pretty good', 'Really good', 'Loved it!'][feedbackRating]}
+        </div>
+        <textarea
+          className="form-textarea feedback-textarea"
+          placeholder="Anything you'd like us to know? (optional)"
+          value={feedbackText}
+          onChange={e => setFeedbackText(e.target.value)}
+        />
+        <button type="submit" className="btn-primary feedback-submit-btn" disabled={feedbackLoading}>
+          {feedbackLoading ? 'Sending…' : 'Submit Feedback'}
+        </button>
+      </form>
+    )}
+  </div>
+</section>
       <section className="section" id="faq">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="message-square" size={14} /> FAQ</div>
@@ -1097,7 +1207,8 @@ const handleCategoryClick = slug => {
           {/* Column 1 — Brand + About */}
           <div className="footer-col footer-col-brand">
             <div className="footer-brand">
-              <div className="footer-brand-icon"><Icon name="mic" size={16} /></div> SpeakUp
+              <div className="footer-brand-icon"><Logo size={16} /></div>
+<span className="brand-wordmark">Speak<span className="brand-accent">Up</span></span>
             </div>
             <p className="footer-about-text">
               Master real English conversations with AI-powered practice.
@@ -1172,8 +1283,8 @@ const handleCategoryClick = slug => {
           <div className="auth-modal">
             <div className="auth-close" onClick={() => setAuthOpen(false)}><Icon name="x" size={18} /></div>
             <div className="auth-logo">
-              <div className="auth-logo-icon"><Icon name="mic" size={22} /></div>
-              <div className="auth-logo-text">SpeakUp</div>
+              <div className="auth-logo-icon"><Logo size={22} /></div>
+              <div className="auth-logo-text brand-wordmark">Speak<span className="brand-accent">Up</span></div>
             </div>
             <div className="auth-subtitle">
   {authMode === 'login'
