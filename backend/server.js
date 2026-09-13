@@ -20,6 +20,9 @@ const weeklyGoalRoutes = require("./routes/weeklyGoalRoutes");
 // NEW — peer practice matching (direct invite + admin oversight)
 const matchRoutes = require("./routes/matchRoutes");
 
+// NEW — daily inactive-user email reminder cron
+const { startReminderCron } = require("./services/reminderService");
+
 const app = express();
 
 connectDB();
@@ -73,6 +76,9 @@ app.use((err, req, res, next) => {
 const server = http.createServer(app);
 const io = initSocket(server);
 app.set("io", io); // routes access this via req.app.get('io')
+
+// Start the hourly inactive-user reminder email check.
+startReminderCron();
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
