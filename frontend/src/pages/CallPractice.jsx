@@ -3,6 +3,23 @@ import { useParams, useNavigate } from "react-router-dom";
 import api from "../api/axiosConfig.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
+// Categories that use the 100-level / 10-fixed-prompts-per-level system
+// (same idea as TextPractice.jsx's LEVELED_CATEGORIES).
+const LEVELED_CATEGORIES = ["speaking"];
+
+// Champion's Vault — locked unless the user has won at least one
+// leaderboard cycle (user.championBadges.length > 0). Kept as a frontend
+// slug list purely to redirect early with a nice message; the REAL
+// enforcement must also happen backend-side (see conversationController).
+const VAULT_CATEGORY_SLUGS = ["vault-boardroom-showdown", "vault-ceo-interview", "vault-live-debate"];
+const MASTERY_CATEGORY_REQUIREMENTS = {
+  "master-grammar-workshop": "grammar",
+  "master-vocabulary-arena": "vocabulary",
+  "master-listening-podcast": "listening",
+  "master-pronunciation-stage": "pronunciation",
+  "master-daily-gauntlet": "dailyPractice",
+  "master-speaking-orator": "speaking",
+};
 // Voice-activity-detection tuning
 const SPEECH_RMS_THRESHOLD = 0.035;      // volume level counted as "you're talking"
 const MIN_UNBROKEN_SPEECH_MS = 300;      // must stay above threshold this long (small dips tolerated) before we trust it
@@ -26,16 +43,43 @@ const HALLUCINATION_PHRASES = new Set([
 
 export default function CallPractice() {
   const { category } = useParams();
-  const { user } = useAuth();
+  const { user, profileLoaded } = useAuth();
   const navigate = useNavigate();
+
+  const isLeveled = LEVELED_CATEGORIES.includes(category);
+  const isVaultCategory = VAULT_CATEGORY_SLUGS.includes(category);
+  const hasChampionAccess = (user?.championBadges?.length || 0) > 0;
+
+  const masteryRequired = MASTERY_CATEGORY_REQUIREMENTS[category];
+  const hasMasteryAccess = masteryRequired
+    ? (user?.masteredCategories || []).includes(masteryRequired)
+    : true;
 
   const [callActive, setCallActive] = useState(false);
   const [callPhase, setCallPhase] = useState("idle"); // idle | listening | thinking | speaking
   const [messages, setMessages] = useState([]);
   const [statusText, setStatusText] = useState("Tap the phone to start the call");
 
+  // ── Leveled-practice state (mirrors TextPractice.jsx) ──
+  const [unlockedLevel, setUnlockedLevel] = useState(1);
+  const [totalLevels, setTotalLevels] = useState(100);
+  const [viewingLevel, setViewingLevel] = useState(1);
+  const [levelQuestions, setLevelQuestions] = useState([]); // the 10 fixed prompts for this level
+  const [loadingLevel, setLoadingLevel] = useState(isLeveled);
+  const [promptIndex, setPromptIndex] = useState(0);        // which of the 10 prompts we're on
+  const [levelFinished, setLevelFinished] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
+
+  const certificateEarned = isLeveled && levelFinished && viewingLevel === totalLevels;
+
   const messagesRef = useRef([]);
   messagesRef.current = messages;
+
+  // Refs so async callbacks (VAD loop, recorder events) always see fresh values
+  const levelQuestionsRef = useRef([]);
+  levelQuestionsRef.current = levelQuestions;
+  const promptIndexRef = useRef(0);
+  promptIndexRef.current = promptIndex;
 
   const callActiveRef = useRef(false);
   const streamRef = useRef(null);
@@ -49,17 +93,62 @@ export default function CallPractice() {
   const recordingStartRef = useRef(0);
   const voiceStreakStartRef = useRef(null);
   const lastAboveThresholdRef = useRef(null);
-  // NEW: tracks whether MediaRecorder has actually been started for this turn.
-  // We delay starting it until the first sign of speech, instead of recording
-  // from the moment we start listening — this keeps leading silence out of
-  // the audio we send to Whisper.
   const recordingStartedRef = useRef(false);
   const callStartTimeRef = useRef(null);
+  const sessionSavedRef = useRef(false);
+  const autoStartNextLevelRef = useRef(false);
 
   useEffect(() => {
     return () => cleanupCall();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Kick the user out if they try to open a vault category without a
+  // champion win. Frontend-only guard for UX — real enforcement is backend.
+  useEffect(() => {
+    if (!profileLoaded) return; // wait for the full profile to hydrate first
+    if (isVaultCategory && !hasChampionAccess) {
+      navigate("/categories");
+      return;
+    }
+    if (masteryRequired && !hasMasteryAccess) {
+      navigate("/categories");
+    }
+  }, [isVaultCategory, hasChampionAccess, masteryRequired, hasMasteryAccess, profileLoaded, navigate]);
+
+  // Load this level's 10 fixed prompts whenever the category/level changes.
+  useEffect(() => {
+    if (!isLeveled) {
+      setLoadingLevel(false);
+      return;
+    }
+    setLoadingLevel(true);
+    api
+      .get(`/quiz/${category}/${viewingLevel}`)
+      .then(({ data }) => {
+        setLevelQuestions(data.questions || []);
+        if (data.levelInfo) {
+          setUnlockedLevel(data.levelInfo.unlockedLevel);
+          setTotalLevels(data.levelInfo.totalLevels);
+          if (viewingLevel === 1 && data.levelInfo.unlockedLevel !== 1) {
+            setViewingLevel(data.levelInfo.unlockedLevel);
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to load level prompts:", err))
+      .finally(() => setLoadingLevel(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category, viewingLevel, isLeveled]);
+
+  // Auto-jump into the next level's call once its prompts have loaded,
+  // if the user tapped "Next Level →" on the finish overlay.
+  useEffect(() => {
+    if (autoStartNextLevelRef.current && !loadingLevel && levelQuestions.length > 0) {
+      autoStartNextLevelRef.current = false;
+      startCall();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingLevel, levelQuestions]);
 
   const cleanupCall = () => {
     callActiveRef.current = false;
@@ -78,8 +167,23 @@ export default function CallPractice() {
     window.speechSynthesis.cancel();
   };
 
+  const saveSession = () => {
+    if (sessionSavedRef.current) return;
+    const transcript = messagesRef.current.map((m) => ({ role: m.role, text: m.text }));
+    if (transcript.length === 0) return;
+    sessionSavedRef.current = true;
+    const durationMinutes = callStartTimeRef.current
+      ? Math.max(1, Math.round((Date.now() - callStartTimeRef.current) / 60000))
+      : 0;
+    const correctionsCount = messagesRef.current.filter((m) => m.hasError).length;
+    api
+      .post("/conversation/sessions", { category, durationMinutes, correctionsCount, transcript })
+      .catch((err) => console.error("Failed to save call session:", err));
+  };
+
   // ── Call lifecycle ──
   const startCall = async () => {
+    if (isLeveled && (loadingLevel || levelQuestions.length === 0)) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -97,9 +201,18 @@ export default function CallPractice() {
 
       callActiveRef.current = true;
       callStartTimeRef.current = Date.now();
+      sessionSavedRef.current = false;
       setCallActive(true);
       setMessages([]);
-      startRecordingTurn();
+      setLevelFinished(false);
+      promptIndexRef.current = 0;
+      setPromptIndex(0);
+
+      if (isLeveled) {
+        askCurrentPrompt();
+      } else {
+        startRecordingTurn();
+      }
     } catch (err) {
       console.error(err);
       setStatusText("⚠️ Couldn't access the microphone. Check permission and try again.");
@@ -107,22 +220,80 @@ export default function CallPractice() {
   };
 
   const endCall = () => {
-    const transcript = messagesRef.current.map((m) => ({ role: m.role, text: m.text }));
-    const durationMinutes = callStartTimeRef.current
-      ? Math.max(1, Math.round((Date.now() - callStartTimeRef.current) / 60000))
-      : 0;
-    const correctionsCount = messagesRef.current.filter((m) => m.hasError).length;
-
-    if (transcript.length > 0) {
-      api
-        .post("/conversation/sessions", { category, durationMinutes, correctionsCount, transcript })
-        .catch((err) => console.error("Failed to save call session:", err));
-    }
-
+    saveSession();
     setCallActive(false);
     setCallPhase("idle");
     setStatusText("Call ended. Tap the phone to start again");
     cleanupCall();
+  };
+
+  // Speaks the current level's fixed prompt out loud, then starts listening
+  // for the user's answer to it.
+  const askCurrentPrompt = () => {
+    const prompt = levelQuestionsRef.current[promptIndexRef.current];
+    if (!prompt) {
+      // Shouldn't happen, but don't hang the call if it does.
+      startRecordingTurn();
+      return;
+    }
+    setMessages((prev) => [...prev, { role: "AI", text: prompt.q }]);
+    speak(prompt.q, () => startRecordingTurn());
+  };
+
+  // Called after the AI has spoken its reply/feedback for the current
+  // prompt. Moves on to the next prompt, or wraps up the level if that
+  // was the 10th one.
+  const advanceLevelFlow = async () => {
+    const nextIndex = promptIndexRef.current + 1;
+    if (nextIndex < levelQuestionsRef.current.length) {
+      promptIndexRef.current = nextIndex;
+      setPromptIndex(nextIndex);
+      askCurrentPrompt();
+      return;
+    }
+
+    // All 10 prompts for this level are done.
+    cancelAnimationFrame(vadFrameRef.current);
+    setCallPhase("idle");
+    setStatusText("Level complete!");
+    setLevelFinished(true);
+    saveSession();
+
+    setAdvancing(true);
+    try {
+      const { data } = await api.post(`/quiz/${category}/complete-level`, { level: viewingLevel });
+      setUnlockedLevel(data.unlockedLevel);
+      setTotalLevels(data.totalLevels);
+    } catch (err) {
+      console.error("Failed to advance level:", err);
+    } finally {
+      setAdvancing(false);
+    }
+  };
+
+  const goToNextLevel = () => {
+    if (advancing) return;
+    cleanupCall();
+    setCallActive(false);
+    setLevelFinished(false);
+    setMessages([]);
+    autoStartNextLevelRef.current = true;
+    setViewingLevel((v) => Math.min(v + 1, totalLevels)); // triggers prompt reload, then auto-starts the call
+  };
+
+  const practiceLevelAgain = () => {
+    if (advancing) return;
+    cleanupCall();
+    setCallActive(false);
+    setLevelFinished(false);
+    setMessages([]);
+    autoStartNextLevelRef.current = true;
+    // viewingLevel unchanged — the loadingLevel effect below still needs a
+    // "loaded" state to trigger the auto-start effect, so nudge it directly.
+    if (!loadingLevel && levelQuestions.length > 0) {
+      autoStartNextLevelRef.current = false;
+      startCall();
+    }
   };
 
   // ── One turn: wait for speech → record only while you're talking (+ a
@@ -183,8 +354,6 @@ export default function CallPractice() {
         if (voiceStreakStartRef.current === null) voiceStreakStartRef.current = now;
         lastAboveThresholdRef.current = now;
 
-        // Start capturing audio the instant we see any sign of speech —
-        // this is what keeps leading silence out of the recording.
         if (!recordingStartedRef.current) {
           beginActualRecording();
         }
@@ -195,8 +364,6 @@ export default function CallPractice() {
         }
         lastSpeechTimeRef.current = now;
       } else if (voiceStreakStartRef.current !== null) {
-        // We were mid-streak — only kill it if the quiet gap has gone on too long
-        // (natural pauses between words/syllables are shorter than HANGOVER_MS).
         const quietFor = now - (lastAboveThresholdRef.current || now);
         if (quietFor > HANGOVER_MS) {
           voiceStreakStartRef.current = null;
@@ -223,14 +390,11 @@ export default function CallPractice() {
       }
 
       if (shouldStopNoSpeech) {
-        // Nothing was ever recorded (recorder never started) — just restart
-        // the whole listening cycle, no API call wasted.
         console.log("[VAD] no speech detected within timeout — listening again");
         startRecordingTurn();
         return;
       }
 
-      // Throttled debug log so we can calibrate SPEECH_RMS_THRESHOLD from real numbers
       if (!tick.lastLog || now - tick.lastLog > 400) {
         tick.lastLog = now;
         const streakMs = voiceStreakStartRef.current ? now - voiceStreakStartRef.current : 0;
@@ -250,7 +414,6 @@ export default function CallPractice() {
     if (!callActiveRef.current) return;
 
     if (!hasSpokenRef.current) {
-      // Nothing was said — just listen again, no API call wasted
       startRecordingTurn();
       return;
     }
@@ -264,7 +427,7 @@ export default function CallPractice() {
 
     try {
       const { data } = await api.post("/conversation/transcribe", formData, {
-        headers: { "Content-Type": undefined }, // let the browser set the multipart boundary
+        headers: { "Content-Type": undefined },
       });
 
       const text = (data.text || "").trim();
@@ -292,12 +455,17 @@ export default function CallPractice() {
     const newHistory = [...messagesRef.current, userMsg];
     setMessages(newHistory);
 
+    const currentPrompt = isLeveled ? levelQuestionsRef.current[promptIndexRef.current] : null;
+
     try {
       const { data } = await api.post("/conversation/turn", {
         category,
-        level: user?.level || "basic",
+        level: isLeveled ? viewingLevel : (user?.level || "basic"),
         userText: text,
         history: newHistory.map((m) => ({ role: m.role, text: m.text })),
+        // Extra context for leveled call practice — backend can use this to
+        // grade the answer against the specific prompt instead of freeform.
+        ...(currentPrompt ? { promptIndex: currentPrompt.index, promptText: currentPrompt.q } : {}),
       });
 
       const aiMsg = {
@@ -309,13 +477,11 @@ export default function CallPractice() {
       };
       setMessages((prev) => [...prev, aiMsg]);
 
-      // If you made a mistake, the AI mentions it out loud first — like a
-      // native speaker gently correcting you mid-conversation — then keeps going.
       const speechText = data.hasError
         ? `Quick tip — ${data.correction}. ${data.aiReply}`
         : data.aiReply;
 
-      speak(speechText);
+      speak(speechText, isLeveled ? () => advanceLevelFlow() : undefined);
     } catch (err) {
       console.error(err);
       setStatusText("Error talking to AI. Check backend is running.");
@@ -323,7 +489,9 @@ export default function CallPractice() {
     }
   };
 
-  const speak = (text) => {
+  // onDone: what to do once the TTS finishes. Defaults to listening again
+  // (freeform chat). Leveled flow passes its own next-step callback.
+  const speak = (text, onDone) => {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "en-US";
@@ -332,25 +500,35 @@ export default function CallPractice() {
     setCallPhase("speaking");
     setStatusText("🔊 AI is speaking...");
 
-    utterance.onend = () => {
-      if (callActiveRef.current) setTimeout(() => startRecordingTurn(), 400);
+    const proceed = () => {
+      if (!callActiveRef.current) return;
+      setTimeout(() => (onDone ? onDone() : startRecordingTurn()), 400);
     };
-    utterance.onerror = () => {
-      if (callActiveRef.current) setTimeout(() => startRecordingTurn(), 400);
-    };
+
+    utterance.onend = proceed;
+    utterance.onerror = proceed;
 
     window.speechSynthesis.speak(utterance);
   };
+
+  const scoreCount = messagesRef.current.filter((m) => m.role === "AI" && !m.hasError).length;
 
   return (
     <div className="call-page">
       <div className="call-header">
         <button onClick={() => navigate("/categories")}>← Back</button>
         <h2>{category.toUpperCase()} practice call</h2>
+        {isLeveled && (
+          <span className="call-level-badge">Level {viewingLevel} of {totalLevels}</span>
+        )}
         <button onClick={() => navigate("/")} className="call-home-link">🏠 Home</button>
       </div>
 
       <div className="chat-window">
+        {isLeveled && loadingLevel && messages.length === 0 && (
+          <p style={{ color: "rgba(255,255,255,0.5)", textAlign: "center" }}>Loading level…</p>
+        )}
+
         {messages.map((m, i) => (
           <div key={i} className={`bubble ${m.role === "You" ? "you" : "ai"}`}>
             <p>{m.text}</p>
@@ -376,13 +554,51 @@ export default function CallPractice() {
             <span className="typing-dot"></span>
           </div>
         )}
+
+        {isLeveled && levelFinished && (
+          <div className="level-finish-overlay">
+            <h3>🎉 Level Complete!</h3>
+            <p>You answered all {levelQuestions.length} prompts.</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", marginTop: 4 }}>
+              {advancing
+                ? "Updating your progress…"
+                : viewingLevel < totalLevels
+                ? `Level ${viewingLevel + 1} is now unlocked.`
+                : "You've completed all levels! 🏆"}
+            </p>
+            <div className="level-finish-actions">
+              <button className="tp-send-btn" onClick={() => { endCall(); navigate("/categories"); }}>
+                Back to Categories
+              </button>
+              <button className="tp-send-btn tp-next-btn" onClick={practiceLevelAgain} disabled={advancing}>
+                Practice Again
+              </button>
+              {viewingLevel < totalLevels && (
+                <button className="tp-send-btn tp-next-btn" onClick={goToNextLevel} disabled={advancing}>
+                  Next Level →
+                </button>
+              )}
+              {certificateEarned && !advancing && (
+                <button className="tp-send-btn tp-next-btn" onClick={() => navigate(`/mastery/${category}`)}>
+                  🏆 View Your Reward
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="call-controls">
         <p className="status">{statusText}</p>
 
         {!callActive ? (
-          <button className="mic-btn" onClick={startCall}>📞</button>
+          <button
+            className="mic-btn"
+            onClick={startCall}
+            disabled={isLeveled && (loadingLevel || levelQuestions.length === 0)}
+          >
+            📞
+          </button>
         ) : (
           <button
             className={`mic-btn ${callPhase === "listening" ? "listening" : ""}`}
@@ -436,9 +652,6 @@ export default function CallPractice() {
           background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary), var(--bg-tertiary));
           color: var(--text-primary);
           font-family: 'Inter', system-ui, sans-serif;
-          /* Only the .chat-window scrolls internally — the outer page
-             itself never needs its own scrollbar, which is what was
-             producing that stray white scrollbar on the right edge. */
           overflow: hidden;
           z-index: 1;
         }
@@ -495,6 +708,16 @@ export default function CallPractice() {
           letter-spacing: -0.3px;
           background: linear-gradient(135deg, var(--accent-1), var(--accent-3));
           -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .call-level-badge {
+          padding: 6px 14px;
+          border-radius: 999px;
+          background: rgba(16,185,129,0.15);
+          border: 1px solid rgba(16,185,129,0.35);
+          color: var(--accent-1);
+          font-size: 13px;
+          font-weight: 700;
+          white-space: nowrap;
         }
         .call-home-link {
           margin-left: auto;
@@ -569,7 +792,6 @@ export default function CallPractice() {
         }
         .bubble p { color: var(--text-primary); }
 
-        /* ── typing / thinking indicator bubble ── */
         .typing-bubble {
           display: flex;
           align-items: center;
@@ -618,6 +840,42 @@ export default function CallPractice() {
         }
         .correction-box strong { color: var(--accent-3); }
 
+        .level-finish-overlay {
+          align-self: center;
+          margin-top: 20px;
+          padding: 28px 32px;
+          border-radius: var(--radius-md);
+          background: rgba(10, 25, 19, 0.9);
+          border: 1px solid var(--glass-border);
+          text-align: center;
+          max-width: 480px;
+        }
+        .level-finish-overlay h3 { margin: 0 0 6px; font-size: 20px; }
+        .level-finish-actions {
+          margin-top: 18px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          justify-content: center;
+        }
+        .tp-send-btn {
+          padding: 10px 18px;
+          border-radius: var(--radius-sm);
+          border: 1.5px solid rgba(255,255,255,0.15);
+          background: rgba(255,255,255,0.06);
+          color: var(--text-primary);
+          font-weight: 600;
+          font-size: 14px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .tp-send-btn:hover { border-color: var(--accent-1); background: rgba(16,185,129,0.12); }
+        .tp-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .tp-next-btn {
+          background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+          border-color: transparent;
+        }
+
         .call-controls {
           position: relative; z-index: 1;
           display: flex;
@@ -656,6 +914,11 @@ export default function CallPractice() {
         .mic-btn:active {
           transform: translateY(0) scale(0.96);
         }
+        .mic-btn:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+          transform: none;
+        }
 
         .mic-btn.listening {
           background: linear-gradient(135deg, #ef4444, #b91c1c);
@@ -671,6 +934,7 @@ export default function CallPractice() {
         @media (max-width: 600px) {
           .call-header { padding: 16px 20px; }
           .call-header h2 { font-size: 16px; }
+          .call-level-badge { font-size: 12px; padding: 5px 10px; }
           .chat-window { padding: 24px 16px 20px; }
           .bubble { max-width: 88%; font-size: 14px; }
           .mic-btn { width: 68px; height: 68px; font-size: 26px; }

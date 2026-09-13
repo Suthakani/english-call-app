@@ -12,10 +12,21 @@ import LearnPage from "./pages/LearnPage.jsx";
 import Leaderboard from "./pages/Leaderboard.jsx";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import AdminRoute from "./components/AdminRoute.jsx";
-import Certificate from "./pages/Certificate.jsx";
+import MasteryReward from "./pages/MasteryReward.jsx";
 import VerifyCertificate from "./pages/VerifyCertificate.jsx";
 import Winners from './pages/Winners.jsx';
 import WinnerPopup from './pages/WinnerPopup.jsx';
+import FeaturesDetailPage from "./pages/FeaturesDetailPage.jsx";
+import CategoriesDetailPage from "./pages/CategoriesDetailPage.jsx";
+import HowItWorksDetailPage from "./pages/HowItWorksDetailPage.jsx";
+import FaqDetailPage from "./pages/FaqDetailPage.jsx";
+import ComparisonDetailPage from "./pages/ComparisonDetailPage.jsx";
+import TestimonialsDetailPage from "./pages/TestimonialsDetailPage.jsx";
+import VocabDetailPage from "./pages/VocabDetailPage.jsx";
+import StreakDetailPage from "./pages/StreakDetailPage.jsx";
+import FindPartner from './pages/FindPartner.jsx';
+import PendingMatches from './pages/admin/PendingMatches.jsx';
+import PracticeCall from './pages/PracticeCall.jsx';
 const Protected = ({ children }) => {
   const { user } = useAuth();
   return user ? children : <Navigate to="/" />;
@@ -36,10 +47,10 @@ export default function App() {
         <Route path="/register" element={<Navigate to="/" />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route
-          path="/certificate/:category"
+          path="/mastery/:category"
           element={
             <Protected>
-              <Certificate />
+              <MasteryReward />
             </Protected>
           }
         />
@@ -128,10 +139,22 @@ export default function App() {
             </AdminRoute>
           }
         />
+       {/* ── Section detail pages (opened from homepage heading clicks) ── */}
+<Route path="/features" element={<FeaturesDetailPage />} />
+<Route path="/learning-categories" element={<CategoriesDetailPage />} />
+<Route path="/how-it-works" element={<HowItWorksDetailPage />} />
+<Route path="/faq" element={<FaqDetailPage />} />
+<Route path="/why-speakup" element={<ComparisonDetailPage />} />
+<Route path="/reviews" element={<TestimonialsDetailPage />} />
+<Route path="/vocabulary-boost" element={<VocabDetailPage />} />
+<Route path="/streak" element={<StreakDetailPage />} />
+<Route path="/find-partner" element={<FindPartner />} />
+<Route path="/admin/matches" element={<PendingMatches />} />
+<Route path="/practice-call/:sessionId" element={<PracticeCall />} />
 
-        {/* ── Catch-all: unknown URLs go to homepage ── */}
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
+{/* Catch-all: unknown URLs go to homepage */}
+<Route path="*" element={<Navigate to="/" />} />
+</Routes>
     </>
   );
 }

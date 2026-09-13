@@ -66,6 +66,22 @@ const buildCertId = (category, issuedAt, userId) => {
   return `${CERT_ID_PREFIX}-${cat3}-${year}-${last4}`;
 };
 
+// ── Category mastery rewards ──
+// Replaces the old plain-certificate reward for finishing all 100 levels
+// of a category. Each entry: a permanent title shown on the profile, plus
+// one exclusive category (defined in data/categories.js with a matching
+// masteryOnly flag) unlocked permanently once earned.
+// NOTE: keys here must match the category keys used in quizContent —
+// double-check against data/quizContent.js if a category doesn't unlock.
+const CATEGORY_MASTERY = {
+  grammar:       { title: "Grammar Master",       unlockSlug: "master-grammar-workshop",  unlockTitle: "Grammar Workshop: Editor Mode" },
+  vocabulary:    { title: "Vocabulary Virtuoso",  unlockSlug: "master-vocabulary-arena",  unlockTitle: "Vocabulary Arena" },
+  listening:     { title: "Listening Legend",     unlockSlug: "master-listening-podcast", unlockTitle: "Podcast Deep-Dive" },
+  pronunciation: { title: "Pronunciation Pro",    unlockSlug: "master-pronunciation-stage", unlockTitle: "The Big Stage" },
+  dailyPractice: { title: "Practice Champion",    unlockSlug: "master-daily-gauntlet",    unlockTitle: "The Gauntlet" },
+  speaking:      { title: "Speaking Master",      unlockSlug: "master-speaking-orator",   unlockTitle: "Orator's Podium" },
+};
+
 // @route GET /api/quiz/:category/:level
 // For grammar, :level is a number (1-100). For other categories, :level
 // is still "basic"/"intermediate"/"advanced".
@@ -141,25 +157,28 @@ const completeLevel = async (req, res) => {
     if (levelNum === currentUnlocked && levelNum < content.length) {
       user.quizLevels[category] = currentUnlocked + 1;
       user.points = (user.points || 0) + 2000;
+    
     } else if (levelNum === currentUnlocked && levelNum === content.length) {
-      // Final level (100) just completed — award the certificate once.
-      const alreadyHas = (user.certificates || []).some(c => c.category === category);
-      if (!alreadyHas) {
-        const issuedAt = new Date();
-        const certId = buildCertId(category, issuedAt, user._id);
-        user.certificates = user.certificates || [];
-        user.certificates.push({ category, issuedAt, certId });
-        certificateEarned = true;
+      // Final level (100) just completed — award the mastery title +
+      // exclusive category unlock once, instead of a plain certificate.
+      user.masteredCategories = user.masteredCategories || [];
+      if (!user.masteredCategories.includes(category)) {
+        user.masteredCategories.push(category);
+        certificateEarned = true; // kept as the same response flag name so the frontend "level finished" trigger still works
       }
       user.points = (user.points || 0) + 2000;
     }
 
     await user.save();
 
+    const mastery = CATEGORY_MASTERY[category];
+
     res.json({
       unlockedLevel: user.quizLevels[category],
       totalLevels: content.length,
-      certificateEarned,
+      certificateEarned, // true the moment mastery is newly earned
+      masteryTitle: mastery?.title || null,
+      masteryUnlockTitle: mastery?.unlockTitle || null,
     });
   } catch (error) {
     console.error(error);
@@ -171,32 +190,33 @@ const completeLevel = async (req, res) => {
 // Requires login — returns the logged-in user's own certificate for a
 // category, including its permanent certId (used to build the QR code
 // on the certificate page).
-const getCertificate = async (req, res) => {
+
+// @route GET /api/quiz/mastery/:category
+// Requires login — returns the logged-in user's mastery reward info for
+// a category (title earned + which exclusive category it unlocked),
+// once they've completed all 100 levels. Replaces getCertificate.
+const getMastery = async (req, res) => {
   try {
     const { category } = req.params;
-    const user = await User.findById(req.user._id).select("username certificates");
+    const user = await User.findById(req.user._id).select("username masteredCategories");
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const cert = (user.certificates || []).find(c => c.category === category);
-    if (!cert) return res.status(404).json({ message: "Certificate not earned yet" });
-
-    // Backfill: certificates issued before certId existed on the schema
-    // won't have one yet. Compute and save it once here so every future
-    // view/verify of this certificate uses the same permanent ID.
-    if (!cert.certId) {
-      cert.certId = buildCertId(cert.category, cert.issuedAt, user._id);
-      await user.save();
+    const hasMastered = (user.masteredCategories || []).includes(category);
+    if (!hasMastered) {
+      return res.status(404).json({ message: "Not mastered yet — complete all 100 levels first." });
     }
 
+    const mastery = CATEGORY_MASTERY[category];
     res.json({
       username: user.username,
-      category: cert.category,
-      issuedAt: cert.issuedAt,
-      certId: cert.certId,
+      category,
+      title: mastery?.title || `${category} Master`,
+      unlockSlug: mastery?.unlockSlug || null,
+      unlockTitle: mastery?.unlockTitle || null,
     });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Could not load certificate", error: error.message });
+    res.status(500).json({ message: "Could not load mastery info", error: error.message });
   }
 };
 
@@ -229,4 +249,4 @@ const verifyCertificate = async (req, res) => {
   }
 };
 
-module.exports = { getQuiz, checkQuizAnswer, completeLevel, getCertificate, verifyCertificate };
+module.exports = { getQuiz, checkQuizAnswer, completeLevel, getMastery, verifyCertificate, CATEGORY_MASTERY };

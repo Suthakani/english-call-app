@@ -722,6 +722,42 @@ const handleCustomAvatarSave = async (config) => {
               {badgeCount} of {CHALLENGE_BADGES.length} badges earned — get every answer right in a challenge to unlock its badge
             </div>
           </div>
+          {(profile?.championBadges?.length > 0 || profile?.certificates?.some(c => c.type === 'champion')) && (
+            <div className="profile-card profile-card-wide champion-card">
+              <div className="profile-card-title"><span className="champion-trophy-icon"><Icon name="trophy" size={18} /></span> Champion Titles</div>
+              <div className="medal-grid">
+                {(profile?.championBadges || []).map((b, i) => (
+                  <div className="medal medal-earned" key={i}>
+                    <Icon name="trophy" size={40} />
+                    <span className="medal-label">Cycle #{b.cycleIndex + 1}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="profile-card-sub" style={{ marginTop: 14 }}>
+                {(profile?.certificates || [])
+                  .filter(c => c.type === 'champion')
+                  .map((c, i) => (
+                    <div key={i} className="champion-cert-row" style={{ marginBottom: 6 }}>
+                      🎖️ Certificate {c.certId} — earned {new Date(c.issuedAt).toLocaleDateString()}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {(profile?.masteredCategories?.length || 0) > 0 && (
+            <div className="profile-card profile-card-wide mastery-card-inline">
+              <div className="profile-card-title"><Icon name="award" size={18} /> Mastery Titles</div>
+              <div style={{ marginTop: 10 }}>
+                {profile.masteredCategories.map((cat) => (
+                  <span className="mastery-title-chip" key={cat}>
+                    <span className="mastery-chip-icon">🏆</span> {cat}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="profile-card profile-card-wide">
             <div className="profile-card-title">Profile Details</div>
             {!editingDetails ? (

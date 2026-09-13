@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { getQuiz, checkQuizAnswer, completeLevel, getCertificate, verifyCertificate } = require("../controllers/quizController");
+const { getQuiz, checkQuizAnswer, completeLevel, getMastery, verifyCertificate } = require("../controllers/quizController");
 const { protect } = require("../middleware/authMiddleware");
 
 // ── IMPORTANT: route order matters in Express ──
@@ -10,7 +10,7 @@ const { protect } = require("../middleware/authMiddleware");
 // level="listening") and silently calls getQuiz instead of
 // getCertificate — which is exactly the bug that was happening here.
 router.post("/check", protect, checkQuizAnswer);
-router.get("/certificate/:category", protect, getCertificate);
+router.get("/mastery/:category", protect, getMastery);
 
 // PUBLIC — no `protect` middleware. Anyone scanning a certificate's QR
 // code hits this without being logged in, so it must stay open.

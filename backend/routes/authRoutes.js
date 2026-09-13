@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const { registerUser, verifyOTP, resendOTP, loginUser, googleLogin } = require("../controllers/authController");
+const { registerUser, verifyOTP, resendOTP, loginUser, googleLogin, googleRegister } = require("../controllers/authController");
 
 router.post("/register", registerUser);
 router.post("/verify-otp", verifyOTP);
 router.post("/resend-otp", resendOTP);
 router.post("/login", loginUser);
 router.post("/google", googleLogin);
+router.post("/google-register", googleRegister);
 
 module.exports = router;

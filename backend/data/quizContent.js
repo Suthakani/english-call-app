@@ -7,6 +7,11 @@ const vocabularyQuestions = require('./vocabularyQuestions');
 const listeningQuestions = require('./listeningQuestions');
 const pronunciationQuestions = require('./pronunciationQuestions');
 const dailyPracticeQuestions = require('./dailyPracticeQuestions');
+// Speaking (call practice) is different from the others: it's not a flat
+// pool of unique questions to cycle through with buildLevels(). It's
+// already a ready-made array of 100 levels x 10 fixed prompts (one topic
+// explored per level), generated separately — so it plugs in as-is below.
+const speakingLevels = require('./speakingContent');
 // Deterministic shuffle so the same level always shows the same order
 // (no Math.random — uses the level number as a seed).
 const seededShuffle = (arr, seed) => {
@@ -47,6 +52,7 @@ const quizContent = {
   listening: listeningLevels,
   pronunciation: pronunciationLevels,
   dailyPractice: dailyPracticeLevels,
+  speaking: speakingLevels,
 };
 
 module.exports = quizContent;

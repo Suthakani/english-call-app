@@ -1,0 +1,124 @@
+.fp-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #050a08, #0e1f19, #070d0a);
+  display: flex; align-items: center; justify-content: center;
+  padding: 100px 20px 60px;
+}
+.fp-card {
+  width: 100%; max-width: 560px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 24px;
+  backdrop-filter: blur(20px);
+  padding: 32px;
+}
+.fp-back {
+  background: none; border: none; color: rgba(255,255,255,0.55);
+  font-size: 14px; font-weight: 600; cursor: pointer; margin-bottom: 16px;
+  font-family: inherit; padding: 0;
+}
+.fp-back:hover { color: #fff; }
+.fp-title { font-size: 24px; font-weight: 800; color: #fff; margin-bottom: 6px; }
+.fp-desc { font-size: 14px; color: rgba(255,255,255,0.6); margin-bottom: 20px; }
+
+.fp-mode-row { display: flex; gap: 8px; margin-bottom: 20px; }
+.fp-mode-chip {
+  padding: 8px 16px; border-radius: 50px; font-size: 13.5px; font-weight: 600;
+  background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7); cursor: pointer; transition: all 0.2s; font-family: inherit;
+}
+.fp-mode-chip.active { background: #10b981; border-color: #10b981; color: #fff; }
+
+.fp-pending-banner {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 16px; border-radius: 12px; margin-bottom: 16px;
+  background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3);
+  color: #fff; font-size: 13.5px;
+}
+.fp-pending-spinner {
+  width: 16px; height: 16px; border: 2px solid rgba(16,185,129,0.2); border-top-color: #10b981;
+  border-radius: 50%; animation: fpSpin 0.8s linear infinite; flex-shrink: 0;
+}
+@keyframes fpSpin { to { transform: rotate(360deg); } }
+.fp-pending-cancel {
+  margin-left: auto; background: none; border: none; color: #fca5a5;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; font-family: inherit;
+}
+
+.fp-empty { text-align: center; padding: 30px 10px; color: rgba(255,255,255,0.4); font-size: 14px; }
+
+.fp-user-list { max-height: 400px; overflow-y: auto; }
+.fp-list-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  color: rgba(255,255,255,0.4); margin: 16px 0 8px;
+}
+.fp-list-label:first-child { margin-top: 0; }
+
+.fp-user-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; border-radius: 12px; margin-bottom: 6px;
+  background: rgba(255,255,255,0.03); transition: background 0.2s;
+}
+.fp-user-row:hover { background: rgba(255,255,255,0.06); }
+.fp-user-row.offline { opacity: 0.55; }
+
+.fp-user-left { display: flex; align-items: center; gap: 10px; }
+.fp-status-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.2); flex-shrink: 0; }
+.fp-status-dot.online { background: #10b981; box-shadow: 0 0 6px #10b981; }
+
+.fp-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, #10b981, #059669);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 700; font-size: 14px;
+}
+.fp-avatar.muted { background: rgba(255,255,255,0.1); }
+
+.fp-username { font-size: 14px; font-weight: 700; color: #fff; }
+.fp-level { font-size: 11.5px; color: rgba(255,255,255,0.45); text-transform: capitalize; }
+
+.fp-invite-btn {
+  padding: 8px 16px; border-radius: 10px; font-size: 13px; font-weight: 700;
+  background: #10b981; border: none; color: #fff; cursor: pointer; transition: all 0.2s;
+}
+.fp-invite-btn:hover:not(:disabled) { background: #059669; }
+.fp-invite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.fp-offline-label { font-size: 12px; color: rgba(255,255,255,0.35); }
+
+/* ── Incoming invite popup ── */
+.fp-invite-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.7); backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.fp-invite-modal {
+  width: 100%; max-width: 380px; text-align: center;
+  background: rgba(10,22,17,0.98); border: 1px solid rgba(16,185,129,0.3);
+  border-radius: 20px; padding: 32px 28px;
+  animation: fpModalPop 0.3s ease both;
+}
+@keyframes fpModalPop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.fp-invite-avatar {
+  width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 16px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 800; font-size: 22px;
+}
+.fp-invite-modal h3 { font-size: 17px; color: #fff; margin-bottom: 6px; }
+.fp-invite-mode { font-size: 13px; color: rgba(255,255,255,0.5); text-transform: capitalize; margin-bottom: 22px; }
+.fp-invite-actions { display: flex; gap: 10px; }
+.fp-invite-actions .btn-primary { flex: 1; justify-content: center; }
+.fp-decline-btn {
+  flex: 1; padding: 13px; border-radius: 12px; font-weight: 700; font-size: 14px;
+  background: rgba(255,255,255,0.06); border: 1.5px solid rgba(255,255,255,0.12);
+  color: #fff; cursor: pointer;
+}
+
+.fp-toast {
+  position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(80px);
+  background: rgba(7,16,12,0.95); color: #fff; padding: 14px 24px; border-radius: 12px;
+  font-size: 14px; opacity: 0; transition: all 0.3s; pointer-events: none;
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.fp-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }

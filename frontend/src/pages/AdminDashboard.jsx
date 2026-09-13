@@ -10,6 +10,8 @@ const TABS = [
   { id: "engagement", label: "Engagement", icon: "🔥" },
   { id: "insights", label: "Insights", icon: "🧠" },
   { id: "messages", label: "Messages", icon: "✉️" },
+  { id: "matches", label: "Partner Requests", icon: "🤝" }, // NEW
+  { id: "questions", label: "Questions", icon: "❓" }, // NEW — Q&A from detail pages
 ];
 
 // Converts the users array to a CSV string and triggers a browser download.
@@ -64,7 +66,23 @@ const [announcementSaving, setAnnouncementSaving] = useState(false);
   const [contactSubs, setContactSubs] = useState([]);
   const [extrasLoading, setExtrasLoading] = useState(true);
   const [extrasError, setExtrasError] = useState("");
+// ── NEW: peer practice matching ──
+const [pendingMatches, setPendingMatches] = useState([]);
+const [selectedMatchIds, setSelectedMatchIds] = useState([]);
+const [matchesLoading, setMatchesLoading] = useState(true);
+const [matchActionLoading, setMatchActionLoading] = useState(false);
+// ── NEW: load pending partner-match requests ──
+const loadPendingMatches = () => {
+  setMatchesLoading(true);
+  api.get("/match/admin/pending")
+    .then(({ data }) => setPendingMatches(data.requests))
+    .catch(() => {})
+    .finally(() => setMatchesLoading(false));
+};
 
+useEffect(() => {
+  loadPendingMatches();
+}, []);
   useEffect(() => {
     Promise.all([
       api.get("/admin/overview"),
@@ -182,6 +200,87 @@ const [announcementSaving, setAnnouncementSaving] = useState(false);
     const hoursSince = (Date.now() - new Date(lastSentAt).getTime()) / (1000 * 60 * 60);
     return hoursSince < 24;
   };
+  // ── NEW: peer match actions ──
+const toggleMatchSelect = (id) => {
+  setSelectedMatchIds((prev) => {
+    if (prev.includes(id)) return prev.filter((x) => x !== id);
+    if (prev.length >= 2) return [prev[1], id];
+    return [...prev, id];
+  });
+};
+
+const handlePairMatches = () => {
+  if (selectedMatchIds.length !== 2) return;
+  setMatchActionLoading(true);
+  api.post("/match/admin/approve-pair", {
+    requestIdA: selectedMatchIds[0],
+    requestIdB: selectedMatchIds[1],
+  })
+    .then(() => {
+      setSelectedMatchIds([]);
+      loadPendingMatches();
+    })
+    .catch((err) => alert(err.response?.data?.message || "Could not pair"))
+    .finally(() => setMatchActionLoading(false));
+};
+
+const handleRejectMatch = (id) => {
+  api.post(`/match/admin/reject/${id}`)
+    .then(() => {
+      setSelectedMatchIds((prev) => prev.filter((x) => x !== id));
+      loadPendingMatches();
+    })
+    .catch(() => alert("Could not reject"));
+};
+
+const matchTimeAgo = (dateStr) => {
+  const mins = Math.floor((Date.now() - new Date(dateStr)) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  return `${Math.floor(mins / 60)}h ago`;
+};
+
+// ── NEW: Q&A from detail pages (streak, faq, etc.) ──
+const [adminQuestions, setAdminQuestions] = useState([]);
+const [questionsLoading, setQuestionsLoading] = useState(true);
+const [qReplyDrafts, setQReplyDrafts] = useState({});
+const [qReplyingId, setQReplyingId] = useState(null);
+const [qSendingId, setQSendingId] = useState(null);
+
+const loadAdminQuestions = () => {
+  setQuestionsLoading(true);
+  api.get("/admin/qna")
+    .then(({ data }) => setAdminQuestions(data.questions || []))
+    .catch(() => {})
+    .finally(() => setQuestionsLoading(false));
+};
+
+useEffect(() => {
+  loadAdminQuestions();
+}, []);
+
+const isUnanswered = (q) => !q.replies || q.replies.length === 0;
+const unansweredCount = adminQuestions.filter(isUnanswered).length;
+
+const handleAdminReply = (questionId) => {
+  const text = (qReplyDrafts[questionId] || "").trim();
+  if (!text) return;
+  setQSendingId(questionId);
+  api
+    .post(`/admin/qna/${questionId}/reply`, { reply: text })
+    .then(({ data }) => {
+      setAdminQuestions((prev) =>
+        prev.map((q) =>
+          q._id === questionId ? { ...q, replies: [...(q.replies || []), data.reply] } : q
+        )
+      );
+      setQReplyDrafts((prev) => ({ ...prev, [questionId]: "" }));
+      setQReplyingId(null);
+    })
+    .catch(() => alert("Could not post reply"))
+    .finally(() => setQSendingId(null));
+};
+
   return (
     <div className="admin-page">
       <div className="admin-bg-blobs">
@@ -221,6 +320,12 @@ const [announcementSaving, setAnnouncementSaving] = useState(false);
                   <span className="admin-tab-badge">
                     {contactSubs.filter((c) => c.status !== "resolved").length}
                   </span>
+                )}
+                {t.id === "matches" && pendingMatches.length > 0 && (
+  <span className="admin-tab-badge">{pendingMatches.length}</span>
+)}
+                {t.id === "questions" && unansweredCount > 0 && (
+                  <span className="admin-tab-badge">{unansweredCount}</span>
                 )}
               </button>
             ))}
@@ -597,8 +702,199 @@ const [announcementSaving, setAnnouncementSaving] = useState(false);
               )}
             </div>
           )}
+
+          {/* ── PARTNER REQUESTS (peer matching) ── */}
+          {activeTab === "matches" && (
+            <div className="admin-tab-panel">
+              <div className="admin-panel-header">
+                <div>
+                  <h2 className="admin-section-title">Pending Partner Requests</h2>
+                  <p className="admin-panel-desc">
+                    Select two compatible requests below, then pair them into a practice session.
+                  </p>
+                </div>
+                {selectedMatchIds.length > 0 && (
+                  <button
+                    className="admin-export-btn"
+                    disabled={selectedMatchIds.length !== 2 || matchActionLoading}
+                    onClick={handlePairMatches}
+                  >
+                    {matchActionLoading ? "Pairing…" : `🤝 Pair Selected (${selectedMatchIds.length}/2)`}
+                  </button>
+                )}
+              </div>
+
+              {matchesLoading ? (
+                <div className="admin-empty">Loading requests...</div>
+              ) : pendingMatches.length === 0 ? (
+                <div className="admin-empty">No pending partner requests right now.</div>
+              ) : (
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th></th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Level</th>
+                        <th>Mode</th>
+                        <th>Requested</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pendingMatches.map((r) => (
+                        <tr
+                          key={r._id}
+                          className="admin-row-clickable"
+                          style={selectedMatchIds.includes(r._id) ? { background: "rgba(16,185,129,0.08)" } : undefined}
+                          onClick={() => toggleMatchSelect(r._id)}
+                        >
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedMatchIds.includes(r._id)}
+                              readOnly
+                              style={{ accentColor: "#10b981" }}
+                            />
+                          </td>
+                          <td className="admin-table-highlight">
+                            <div className="admin-avatar-cell">
+                              <span className="admin-mini-avatar">{initials(r.user?.username)}</span>
+                              {r.user?.username || "Unknown"}
+                            </div>
+                          </td>
+                          <td>{r.user?.email}</td>
+                          <td><span className="admin-level-pill">{r.level}</span></td>
+                          <td><span className="admin-level-pill">{r.mode}</span></td>
+                          <td>{matchTimeAgo(r.createdAt)}</td>
+                          <td>
+                            <button
+                              className="admin-export-btn"
+                              onClick={(e) => { e.stopPropagation(); handleRejectMatch(r._id); }}
+                            >
+                              Reject
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── QUESTIONS: Q&A asked on detail pages (streak, faq, etc.) ── */}
+          {activeTab === "questions" && (
+            <div className="admin-tab-panel">
+              <div className="admin-panel-header">
+                <div>
+                  <h2 className="admin-section-title">Learner Questions</h2>
+                  <p className="admin-panel-desc">
+                    Questions asked from the site's detail pages. Your reply shows up tagged as the Official Answer.
+                  </p>
+                </div>
+              </div>
+
+              {questionsLoading ? (
+                <div className="admin-empty">Loading questions...</div>
+              ) : adminQuestions.length === 0 ? (
+                <div className="admin-empty">No questions yet.</div>
+              ) : (
+                <div className="admin-modal-list" style={{ gap: 10 }}>
+                  {adminQuestions
+                    .slice()
+                    .sort((a, b) => {
+                      // Unanswered first, then newest first
+                      const aUn = isUnanswered(a), bUn = isUnanswered(b);
+                      if (aUn !== bUn) return aUn ? -1 : 1;
+                      return new Date(b.createdAt) - new Date(a.createdAt);
+                    })
+                    .map((q) => {
+                      const unanswered = isUnanswered(q);
+                      return (
+                        <div
+                          key={q._id}
+                          className="admin-table-wrap"
+                          style={{ padding: 18, display: "flex", flexDirection: "column", gap: 10 }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                            <span className="admin-table-highlight">
+                              {q.username} <span style={{ fontWeight: 400, color: "var(--text-muted)" }}>· {q.pageSlug}</span>
+                            </span>
+                            <span className={unanswered ? "admin-risk-pill" : "admin-level-pill"}>
+                              {unanswered ? "Unanswered" : "Answered"}
+                            </span>
+                          </div>
+
+                          <div style={{ color: "#fff", fontSize: 15 }}>{q.question}</div>
+                          <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                            {new Date(q.createdAt).toLocaleString()}
+                          </div>
+
+                          {q.replies?.length > 0 && (
+                            <div className="admin-modal-list" style={{ marginTop: 4 }}>
+                              {q.replies.map((r, i) => (
+                                <div
+                                  className="admin-modal-list-item"
+                                  key={i}
+                                  style={r.isAdmin ? { borderColor: "rgba(16,185,129,0.3)" } : undefined}
+                                >
+                                  <span>{r.isAdmin ? "✅ " : ""}{r.reply}</span>
+                                  <span>{r.username}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {qReplyingId === q._id ? (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                              <textarea
+                                className="admin-announcement-input"
+                                style={{ marginBottom: 0 }}
+                                rows={2}
+                                placeholder="Write the official answer..."
+                                value={qReplyDrafts[q._id] || ""}
+                                onChange={(e) =>
+                                  setQReplyDrafts((prev) => ({ ...prev, [q._id]: e.target.value }))
+                                }
+                              />
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button
+                                  className="admin-export-btn"
+                                  onClick={() => handleAdminReply(q._id)}
+                                  disabled={qSendingId === q._id || !(qReplyDrafts[q._id] || "").trim()}
+                                >
+                                  {qSendingId === q._id ? "Sending…" : "Send Reply"}
+                                </button>
+                                <button
+                                  className="admin-home-btn"
+                                  onClick={() => setQReplyingId(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              className="admin-export-btn"
+                              style={{ alignSelf: "flex-start" }}
+                              onClick={() => setQReplyingId(q._id)}
+                            >
+                              {unanswered ? "✉ Reply as Admin" : "Add Another Reply"}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
+        
 
       {selectedUserId && (
         <UserDetailModal userId={selectedUserId} onClose={() => setSelectedUserId(null)} />

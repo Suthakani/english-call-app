@@ -69,6 +69,10 @@ const getProfile = async (req, res) => {
       streakFreezeCount: user.streakFreezeCount,
       streakFreezeUsedDate: user.streakFreezeUsedDate,
       role: user.role,
+      profileComplete: user.profileComplete, // NEW — so a page reload doesn't lose this
+      championBadges: user.championBadges || [],
+      certificates: user.certificates || [],
+      masteredCategories: user.masteredCategories || [],
     });
   } catch (error) {
     console.error(error);

@@ -1,3 +1,19 @@
+/* ══════════════════════════════════════════════
+   OVERSCROLL BACKGROUND FIX — add near the top of homepage.css / index.css
+   Fixes: scrolling past the bottom of the page reveals a plain/blue
+   default background instead of the app's dark theme.
+   ══════════════════════════════════════════════ */
+
+html, body, #root {
+  min-height: 100%;
+  background: linear-gradient(135deg, #050a08, #0e1f19, #070d0a);
+}
+
+/* Stops the rubber-band/elastic overscroll effect itself, so there's no
+   gap to reveal in the first place. Safe to keep even with the fix above. */
+html {
+  overscroll-behavior-y: none;
+}
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -1775,3 +1791,275 @@ html { scroll-behavior: smooth; }
 }
 .light-theme .footer-links a:hover { color: #1a2620; }
 .light-theme .footer { border-top-color: #e5e9e6; }
+/* ══════════════════════════════════════════════
+   ADVANCED FOOTER — append this block to the end of homepage.css
+   Works alongside the existing .footer / .footer-content rules above;
+   these new classes only apply inside footer-advanced.
+   ══════════════════════════════════════════════ */
+
+.footer-advanced {
+  padding: 64px 40px 28px;
+}
+
+.footer-content-advanced {
+  max-width: 1200px; margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 40px;
+  padding-bottom: 44px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.footer-col-brand .footer-brand { margin-bottom: 16px; }
+.footer-about-text {
+  font-size: 14px; line-height: 1.6; color: var(--text-secondary);
+  max-width: 300px; margin-bottom: 24px;
+}
+
+.footer-col-title {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+  color: #f0d98a; margin-bottom: 18px;
+}
+
+.footer-links-vertical {
+  display: flex; flex-direction: column; gap: 12px; list-style: none;
+}
+.footer-links-vertical a {
+  font-size: 14px; color: var(--text-muted); text-decoration: none; transition: color 0.2s, padding-left 0.2s;
+}
+.footer-links-vertical a:hover { color: #fff; padding-left: 4px; }
+
+.footer-contact-list { margin-bottom: 20px; }
+.footer-contact-item {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13.5px; color: var(--text-muted);
+}
+.footer-contact-item svg { color: var(--accent-1); stroke: var(--accent-1); flex-shrink: 0; }
+
+.footer-socials { display: flex; gap: 10px; }
+.footer-social-link {
+  width: 38px; height: 38px; border-radius: 10px;
+}
+
+/* Newsletter */
+.footer-newsletter { margin-top: 4px; }
+.footer-newsletter-label {
+  display: block; font-size: 12.5px; font-weight: 600; color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+.footer-newsletter-form { display: flex; gap: 8px; max-width: 280px; }
+.footer-newsletter-input {
+  flex: 1; padding: 11px 14px; border-radius: 10px;
+  background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1);
+  color: #fff; font-size: 13.5px; outline: none; font-family: inherit;
+  transition: all 0.25s;
+}
+.footer-newsletter-input::placeholder { color: var(--text-muted); }
+.footer-newsletter-input:focus {
+  border-color: rgba(16,185,129,0.5); background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 3px rgba(16,185,129,0.1);
+}
+.footer-newsletter-btn {
+  width: 40px; height: 40px; border-radius: 10px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  border: none; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.footer-newsletter-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 18px var(--shadow-glow); }
+
+/* Bottom bar */
+.footer-bottom {
+  max-width: 1200px; margin: 0 auto;
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px;
+  padding-top: 22px;
+}
+.footer-bottom-links { display: flex; align-items: center; gap: 10px; }
+.footer-bottom-links a {
+  font-size: 12.5px; color: var(--text-muted); text-decoration: none; transition: color 0.2s;
+}
+.footer-bottom-links a:hover { color: #fff; }
+.footer-bottom-dot { color: var(--text-muted); font-size: 10px; }
+
+/* Light theme support */
+.light-theme .footer-col-title { color: #7a5c0f; }
+.light-theme .footer-about-text { color: rgba(26,38,32,0.62); }
+.light-theme .footer-links-vertical a { color: rgba(26,38,32,0.55); }
+.light-theme .footer-links-vertical a:hover { color: #1a2620; }
+.light-theme .footer-contact-item { color: rgba(26,38,32,0.55); }
+.light-theme .footer-newsletter-label { color: rgba(26,38,32,0.65); }
+.light-theme .footer-newsletter-input {
+  background: #ffffff; border-color: #dfe6e1; color: #1a2620;
+}
+.light-theme .footer-newsletter-input::placeholder { color: rgba(26,38,32,0.35); }
+.light-theme .footer-content-advanced { border-bottom-color: #e5e9e6; }
+.light-theme .footer-bottom-links a { color: rgba(26,38,32,0.5); }
+.light-theme .footer-bottom-links a:hover { color: #1a2620; }
+
+/* Responsive */
+@media (max-width: 1000px) {
+  .footer-content-advanced { grid-template-columns: 1fr 1fr; }
+  .footer-col-brand { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .footer-advanced { padding: 48px 20px 24px; }
+  .footer-content-advanced { grid-template-columns: 1fr; text-align: left; gap: 32px; }
+  .footer-bottom { flex-direction: column; text-align: center; }
+  .footer-newsletter-form { max-width: 100%; }
+}
+/* ── BUBBLES + SPARKLES BACKGROUND ── */
+.bg-bubbles { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.bg-bubble {
+  position: absolute; bottom: -80px; border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(16,185,129,0.35), rgba(16,185,129,0.02) 70%);
+  border: 1px solid rgba(16,185,129,0.25);
+  animation: bubbleRise linear infinite;
+}
+@keyframes bubbleRise {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.4; }
+  100% { transform: translateY(-115vh) translateX(30px); opacity: 0; }
+}
+.bg-sparkle {
+  position: absolute; width: 5px; height: 5px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(212,175,55,0.95), rgba(212,175,55,0) 70%);
+  animation: sparkleTwinkle ease-in-out infinite;
+}
+@keyframes sparkleTwinkle {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  50%      { opacity: 1; transform: scale(1.3); }
+}
+/* ── FLOATING PARTNER BUTTON ── */
+.floating-partner-btn {
+  position: fixed; bottom: 28px; right: 210px; z-index: 250;
+  display: flex; align-items: center; gap: 8px;
+  padding: 14px 20px; border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  border: 1.5px solid rgba(255,255,255,0.18);
+  backdrop-filter: blur(12px);
+  color: #fff; font-weight: 700; font-size: 14px;
+  cursor: pointer; font-family: inherit;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.25);
+  transition: all 0.25s;
+}
+.floating-partner-btn:hover {
+  background: rgba(255,255,255,0.14);
+  transform: translateY(-4px);
+  border-color: rgba(16,185,129,0.4);
+}
+@media (max-width: 640px) {
+  .floating-partner-btn {
+    bottom: 92px; right: 20px;
+    padding: 14px;
+  }
+  .floating-partner-label { display: none; }
+}
+/* ══════════════════════════════════════════════
+   Q&A SECTION — append this block to the end of homepage.css
+   Matches existing --glass-bg / --accent-1 / dp- theme
+   ══════════════════════════════════════════════ */
+
+.dp-qna {
+  max-width: 720px; margin: 48px auto 0;
+  padding: 0 4px;
+}
+
+.dp-qna-ask-form {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 20px; border-radius: var(--radius-lg);
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  margin-bottom: 28px;
+}
+
+.dp-qna-input {
+  width: 100%; padding: 13px 16px; border-radius: 12px;
+  background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1);
+  color: #fff; font-size: 14.5px; font-family: inherit; resize: vertical; outline: none;
+  transition: all 0.25s;
+}
+.dp-qna-input::placeholder { color: var(--text-muted); }
+.dp-qna-input:focus {
+  border-color: rgba(16,185,129,0.5); background: rgba(255,255,255,0.08);
+  box-shadow: 0 0 0 4px rgba(16,185,129,0.1);
+}
+
+.dp-qna-ask-form .dp-btn { align-self: flex-end; }
+
+.dp-qna-login-hint {
+  font-size: 14px; color: var(--text-muted); margin-bottom: 24px; text-align: center;
+}
+.dp-qna-loading, .dp-qna-empty {
+  font-size: 14px; color: var(--text-muted); text-align: center; padding: 20px 0;
+}
+
+.dp-qna-list { display: flex; flex-direction: column; gap: 18px; }
+
+.dp-qna-item {
+  padding: 20px 22px; border-radius: var(--radius-lg);
+  background: var(--glass-bg); border: 1px solid var(--glass-border);
+  transition: border-color 0.25s;
+}
+.dp-qna-item:hover { border-color: rgba(255,255,255,0.16); }
+
+.dp-qna-question { display: flex; gap: 12px; align-items: flex-start; }
+.dp-qna-avatar {
+  width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+  color: #fff; font-weight: 700; font-size: 14px;
+}
+.dp-qna-question-text { font-size: 15px; font-weight: 600; color: #fff; line-height: 1.5; }
+.dp-qna-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+.dp-qna-replies {
+  margin: 14px 0 0 48px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.dp-qna-reply {
+  padding: 12px 16px; border-radius: 12px;
+  background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border);
+}
+.dp-qna-reply-text { font-size: 14px; color: var(--text-secondary); line-height: 1.55; }
+.dp-qna-reply-admin {
+  background: rgba(16,185,129,0.1);
+  border-color: rgba(16,185,129,0.3);
+}
+.dp-qna-admin-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  color: #6ee7b7; margin-bottom: 6px;
+}
+
+.dp-qna-reply-toggle {
+  margin: 12px 0 0 48px;
+  background: none; border: none; color: var(--accent-1);
+  font-size: 13px; font-weight: 600; cursor: pointer; padding: 0;
+  font-family: inherit; text-decoration: underline;
+}
+
+.dp-qna-reply-form {
+  margin: 14px 0 0 48px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.dp-qna-reply-actions { display: flex; gap: 10px; }
+.dp-btn-ghost {
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+  color: var(--text-secondary);
+}
+.dp-btn-ghost:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
+@media (max-width: 600px) {
+  .dp-qna-replies, .dp-qna-reply-toggle, .dp-qna-reply-form { margin-left: 0; }
+}
+
+/* Light theme */
+.light-theme .dp-qna-ask-form,
+.light-theme .dp-qna-item { background: #ffffff; border-color: #e5e9e6; }
+.light-theme .dp-qna-input { background: #ffffff; border-color: #dfe6e1; color: #1a2620; }
+.light-theme .dp-qna-input::placeholder { color: rgba(26,38,32,0.35); }
+.light-theme .dp-qna-question-text { color: #1a2620; }
+.light-theme .dp-qna-reply { background: #f5f7f4; border-color: #e5e9e6; }
+.light-theme .dp-qna-reply-text { color: rgba(26,38,32,0.7); }
+.light-theme .dp-btn-ghost { background: #f5f7f4; border-color: #dfe6e1; color: rgba(26,38,32,0.65); }

@@ -87,6 +87,9 @@ const category = rawCategory === "daily-practice" ? "dailyPractice" : rawCategor
   };
 
   const nextQuestion = async () => {
+    // Guard against double-click / double-tap firing this twice in a row,
+    // which would call complete-level multiple times and skip levels.
+    if (advancing) return;
     setInput("");
     setFeedback(null);
     setShowHint(false);
@@ -190,8 +193,12 @@ const category = rawCategory === "daily-practice" ? "dailyPractice" : rawCategor
                     {checking ? "…" : "Check"}
                   </button>
                 ) : (
-                  <button className="tp-send-btn tp-next-btn" onClick={nextQuestion}>
-                    {step + 1 < questions.length ? "Next →" : "Finish →"}
+                  <button
+                    className="tp-send-btn tp-next-btn"
+                    onClick={nextQuestion}
+                    disabled={advancing}
+                  >
+                    {advancing ? "…" : (step + 1 < questions.length ? "Next →" : "Finish →")}
                   </button>
                 )}
               </div>

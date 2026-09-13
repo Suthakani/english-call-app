@@ -9,14 +9,18 @@ export default function LevelTest() {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [loadingQuestions, setLoadingQuestions] = useState(true);
+    const [loadingQuestions, setLoadingQuestions] = useState(true);
+  const [instruction, setInstruction] = useState("");
   const navigate = useNavigate();
   const { updateUser, user } = useAuth();
 
   useEffect(() => {
     api
       .get("/test/questions")
-      .then(({ data }) => setQuestions(data))
+      .then(({ data }) => {
+        setQuestions(data.questions);
+        setInstruction(data.instruction);
+      })
       .finally(() => setLoadingQuestions(false));
   }, []);
 
@@ -53,13 +57,12 @@ export default function LevelTest() {
   if (result) {
     return pageWrap(
       <>
-        <div className="section-header" style={{ margin: "0 0 40px" }}>
+                        <div className="section-header" style={{ margin: "0 0 40px", textAlign: "center", maxWidth: "none" }}>
           <div className="section-tag">🎉 RESULT</div>
           <h1 className="section-title">Test <span className="gradient-text">Complete!</span></h1>
-          <p className="section-desc">
-            Score: {result.score} / {result.totalQuestions} &nbsp;·&nbsp; Your level:{" "}
-            <strong style={{ color: "#f0d98a" }}>{result.assignedLevel.toUpperCase()}</strong>
-          </p>
+        <p className="section-desc" style={{ textAlign: "center" }}>
+          {instruction}
+        </p>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16, marginBottom: 32 }}>
@@ -96,22 +99,20 @@ export default function LevelTest() {
 
   if (loadingQuestions) {
     return pageWrap(
-      <div className="section-header" style={{ margin: 0 }}>
-        <div className="section-tag">QUICK CHECK</div>
+      <div className="section-header" style={{ margin: 0, textAlign: "center", maxWidth: "none" }}>        <div className="section-tag">QUICK CHECK</div>
         <h1 className="section-title">Quick Level <span className="gradient-text">Check</span></h1>
-        <p className="section-desc">Generating your test in {user?.nativeLanguage || "your language"}…</p>
+                <p className="section-desc" style={{ textAlign: "center" }}>Generating your test in {user?.nativeLanguage || "your language"}…</p>
       </div>
     );
   }
 
   return pageWrap(
     <>
-      <div className="section-header" style={{ margin: "0 0 40px" }}>
+                  <div className="section-header" style={{ margin: "0 0 40px", textAlign: "center", maxWidth: "none" }}>
         <div className="section-tag">QUICK CHECK</div>
         <h1 className="section-title">Quick Level <span className="gradient-text">Check</span></h1>
-        <p className="section-desc">
-          Unga native language ({user?.nativeLanguage}) la oru sentence varum, adha correct ah English la type
-          pannunga. Ungala match panra category kandupudika idhu help pannும்.
+                                <p className="section-desc" style={{ textAlign: "center" }}>
+          {instruction}
         </p>
       </div>
 

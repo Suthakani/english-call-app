@@ -2,7 +2,15 @@ const fetch = require("node-fetch");
 const FormData = require("form-data");
 const categories = require("../data/categories");
 const User = require("../models/User");
-
+const VAULT_CATEGORY_SLUGS = ["vault-boardroom-showdown", "vault-ceo-interview", "vault-live-debate"];
+const MASTERY_CATEGORY_REQUIREMENTS = {
+  "master-grammar-workshop": "grammar",
+  "master-vocabulary-arena": "vocabulary",
+  "master-listening-podcast": "listening",
+  "master-pronunciation-stage": "pronunciation",
+  "master-daily-gauntlet": "dailyPractice",
+  "master-speaking-orator": "speaking",
+};
 // Phrases Whisper hallucinates on silent/noisy/short audio —
 // treat these as "nothing was said" instead of a real transcription.
 const HALLUCINATION_PHRASES = new Set([
@@ -193,8 +201,33 @@ const trackCategoryProgress = async (userId, categoryKey) => {
 // @route POST /api/conversation/turn
 const conversationTurn = async (req, res) => {
   try {
-    const { category, level, userText, history = [] } = req.body;
+    // promptText/promptIndex are sent by the leveled speaking-call flow
+    // (CallPractice.jsx) — the fixed question the frontend just asked the
+    // user out loud, whose answer we're now grading. Freeform categories
+    // simply won't send these, so nothing else changes for them.
+    const { category, level, userText, history = [], promptText } = req.body;
     const categoryKey = categories[category] ? category : "daily";
+
+    // Server-side vault gate — even if someone bypasses the frontend
+    // redirect and calls this API directly, they can't get vault content
+    // without a real champion win on their account.
+    if (VAULT_CATEGORY_SLUGS.includes(categoryKey)) {
+      const requester = await User.findById(req.user._id).select("championBadges").lean();
+      const hasChampionAccess = (requester?.championBadges?.length || 0) > 0;
+      if (!hasChampionAccess) {
+        return res.status(403).json({ message: "This category is locked. Win a leaderboard cycle to unlock Champion's Vault." });
+      }
+    }
+
+    const masteryRequired = MASTERY_CATEGORY_REQUIREMENTS[categoryKey];
+    if (masteryRequired) {
+      const requester = await User.findById(req.user._id).select("masteredCategories").lean();
+      const hasMastery = (requester?.masteredCategories || []).includes(masteryRequired);
+      if (!hasMastery) {
+        return res.status(403).json({ message: "This category is locked. Master the related skill (100 levels) to unlock it." });
+      }
+    }
+
     const cat = categories[categoryKey];
 
     const levelInstruction = {
@@ -215,7 +248,20 @@ const conversationTurn = async (req, res) => {
     let effectiveUserText = userText;
     const isControlMessage = userText === "__START__" || userText === "__HINT__";
 
-    if (userText === "__START__") {
+    if (promptText) {
+      // ── Leveled speaking-call turn ──
+      // The frontend already asked this exact question out loud and will
+      // ask the NEXT one itself once we're done here. So the AI should only
+      // react to the answer (check it, correct it if needed) — never ask a
+      // new question of its own, or the two would collide.
+      systemPrompt =
+        `${cat.basePrompt}\n${levelInstruction}\n` +
+        `This is a structured speaking-practice call. The practice question you just asked the user out loud was: "${promptText}". ` +
+        `The user answered by speaking a response to it. First silently check their answer for grammar/vocabulary mistakes ` +
+        `and whether it actually addresses the question. Then give a short, natural, encouraging reaction to what they said ` +
+        `(like a friendly conversation partner would) in 1-2 sentences. Do NOT ask a new question yourself — another question ` +
+        `will be asked separately right after this.`;
+    } else if (userText === "__START__") {
       systemPrompt =
         `${cat.basePrompt}\n${levelInstruction}\n` +
         `This is the very start of a practice session. Ask the user ONE clear practice question ` +

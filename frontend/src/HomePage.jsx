@@ -5,6 +5,7 @@ import { auth, provider } from "./firebase";
 import api from "./api/axiosConfig.js";
 import { useAuth } from "./context/AuthContext.jsx";
 import './homepage.css';
+import './pages/detailPages.css';
 import BottomNav from './components/BottomNav.jsx';
 
 
@@ -236,6 +237,7 @@ export default function HomePage() {
   const [activeSection, setActiveSection] = useState('hero');
   const [authMode, setAuthMode] = useState('login');
   const [authOpen, setAuthOpen] = useState(false);
+  const [googleSignupInfo, setGoogleSignupInfo] = useState(null);
   const [loginError, setLoginError] = useState('');
   const [signupError, setSignupError] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
@@ -368,30 +370,44 @@ export default function HomePage() {
   };
 
   const openAuth = mode => { setAuthMode(mode); setAuthOpen(true); setLoginError(''); setSignupError(''); };
-  const switchTab = mode => { setAuthMode(mode); setLoginError(''); setSignupError(''); };
+  const switchTab = mode => { setAuthMode(mode); setLoginError(''); setSignupError(''); setGoogleSignupInfo(null); };
 
   const showToast = msg => {
     setToastMsg(msg);
     setToastShow(true);
     setTimeout(() => setToastShow(false), 3500);
   };
-  const handleGoogleLogin = async () => {
-    try {
-      const result = await signInWithPopup(auth, provider);
-      const { data } = await api.post('/auth/google', {
-        email: result.user.email,
-        username: result.user.displayName,
-        photoUrl: result.user.photoURL,
-        uid: result.user.uid,
-      });
-      login(data.user, data.token);
-      setAuthOpen(false);
+   const handleGoogleLogin = async () => {
+  try {
+    const result = await signInWithPopup(auth, provider);
+    console.log('Firebase returned email:', result.user.email);
+    const { data } = await api.post('/auth/google', {
+      email: result.user.email,
+      username: result.user.displayName,
+      photoUrl: result.user.photoURL,
+      uid: result.user.uid,
+    });
 
-      if (data.user.role === 'admin') {
-        navigate('/admin');
-        return;
-      }
-      const pendingCategory = sessionStorage.getItem('pendingCategory');
+    if (data.newUser) {
+      setGoogleSignupInfo({
+        email: data.email,
+        username: (data.username || '').replace(/[^a-zA-Z0-9 ]/g, '').trim(),
+        photoUrl: data.photoUrl,
+        uid: data.uid,
+      });
+      setAuthMode('signup');
+      setAuthOpen(true);
+      setSignupError('');
+      return;
+    }
+    login(data.user, data.token);
+    setAuthOpen(false);
+
+    if (data.user.role === 'admin') {
+      navigate('/admin');
+      return;
+    }
+            const pendingCategory = sessionStorage.getItem('pendingCategory');
       if (pendingCategory) {
         sessionStorage.removeItem('pendingCategory');
         navigate(`/call/${pendingCategory}`);
@@ -470,8 +486,37 @@ export default function HomePage() {
     e.preventDefault();
     const username = e.target.signupName.value;
     const email = e.target.signupEmail.value;
-    const password = e.target.signupPassword.value;
     const nativeLanguage = e.target.signupLanguage.value;
+
+    if (googleSignupInfo) {
+      if (!username) { setSignupError('Please enter a username.'); return; }
+      if (!nativeLanguage) { setSignupError('Please select your native language.'); return; }
+      const gender = e.target.signupGender.value;
+
+      setSignupError('');
+      setSignupLoading(true);
+      try {
+        const { data } = await api.post('/auth/google-register', {
+          email: googleSignupInfo.email,
+          username,
+          photoUrl: googleSignupInfo.photoUrl,
+          uid: googleSignupInfo.uid,
+          nativeLanguage,
+          gender,
+        });
+        setGoogleSignupInfo(null);
+        login(data.user, data.token);
+        setAuthOpen(false);
+        navigate(data.user.level === 'unassigned' ? '/level-test' : '/categories');
+      } catch (err) {
+        setSignupError(err.response?.data?.message || 'Registration failed');
+      } finally {
+        setSignupLoading(false);
+      }
+      return;
+    }
+
+    const password = e.target.signupPassword.value;
     const gender = e.target.signupGender.value;
     if (!username || !email || !password) { setSignupError('Please fill in all fields.'); return; }
     if (password.length < 6) { setSignupError('Password must be at least 6 characters.'); return; }
@@ -571,7 +616,33 @@ const handleCategoryClick = slug => {
         <div className="blob blob-3"></div>
       </div>
       <div className="noise"></div>
-
+      <div className="bg-bubbles">
+        {[...Array(14)].map((_, i) => (
+          <div
+            key={`bubble-${i}`}
+            className="bg-bubble"
+            style={{
+              left: `${(i * 7.3) % 100}%`,
+              width: `${10 + (i % 5) * 6}px`,
+              height: `${10 + (i % 5) * 6}px`,
+              animationDuration: `${11 + (i % 6) * 2}s`,
+              animationDelay: `${i * 0.8}s`,
+            }}
+          />
+        ))}
+        {[...Array(12)].map((_, i) => (
+          <div
+            key={`sparkle-${i}`}
+            className="bg-sparkle"
+            style={{
+              left: `${(i * 8.6) % 100}%`,
+              top: `${(i * 13.5) % 100}%`,
+              animationDuration: '2.6s',
+              animationDelay: `${i * 0.5}s`,
+            }}
+          />
+        ))}
+      </div>
       <nav className={`navbar${scrolled ? ' scrolled' : ''}${announcementOpen ? ' with-announcement' : ''}`}>
         <div className="nav-brand" onClick={() => scrollTo('hero')}>
           <div className="nav-brand-icon"><Icon name="mic" size={20} /></div>
@@ -592,10 +663,16 @@ const handleCategoryClick = slug => {
         <span className="nav-user-avatar nav-admin-avatar">👑</span>
         <span className="nav-user-name">Admin</span>
       </button>
-      {userMenuOpen && (
+            {userMenuOpen && (
         <div className="nav-user-dropdown">
-          <button onClick={() => { setUserMenuOpen(false); navigate('/admin'); }}>
-            <Icon name="bar-chart-3" size={16} /> Admin Dashboard
+          <button onClick={() => { setUserMenuOpen(false); navigate('/categories'); }}>
+            <Icon name="route" size={16} /> Categories
+          </button>
+          <button onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}>
+            <Icon name="user" size={16} /> Profile
+          </button>
+          <button onClick={() => { setUserMenuOpen(false); navigate('/find-partner'); }}>
+            <Icon name="users" size={16} /> Find a Partner
           </button>
           <button onClick={handleLogout}>
             <Icon name="x" size={16} /> Log Out
@@ -603,7 +680,7 @@ const handleCategoryClick = slug => {
         </div>
       )}
     </div>
-  ) : (
+    ) : (
     <div className="nav-user-menu" ref={userMenuRef}>
       <button className="nav-user-trigger" onClick={() => setUserMenuOpen(v => !v)}>
         <span className="nav-user-avatar">
@@ -618,6 +695,9 @@ const handleCategoryClick = slug => {
           </button>
           <button onClick={() => { setUserMenuOpen(false); navigate('/profile'); }}>
             <Icon name="user" size={16} /> Profile
+          </button>
+          <button onClick={() => { setUserMenuOpen(false); navigate('/find-partner'); }}>
+            <Icon name="users" size={16} /> Find a Partner
           </button>
           <button onClick={handleLogout}>
             <Icon name="x" size={16} /> Log Out
@@ -720,7 +800,7 @@ const handleCategoryClick = slug => {
       <section className="section streak-section" id="streak">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="flame" size={14} /> STAY CONSISTENT</div>
-          <h2 className="section-title">Build Your Daily<br /><span className="gradient-text">Speaking Streak</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/streak')}>Build Your Daily<br /><span className="gradient-text">Speaking Streak</span></h2>
           <p className="section-desc">Every conversation counts. Come back daily, keep your streak alive, and unlock milestones as you grow.</p>
         </div>
         <div className="streak-panel reveal">
@@ -774,7 +854,7 @@ const handleCategoryClick = slug => {
       <section className="section" id="features">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="sparkles" size={14} /> FEATURES</div>
-          <h2 className="section-title">Everything You Need to<br /><span className="gradient-text">Speak Fluently</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/features')}>Everything You Need to<br /><span className="gradient-text">Speak Fluently</span></h2>
           <p className="section-desc">Our AI doesn't just teach — it listens, corrects, and adapts to your level in real time.</p>
         </div>
         <div className="features-grid">
@@ -791,7 +871,7 @@ const handleCategoryClick = slug => {
       <section className="section" id="learning-categories">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="route" size={14} /> LEARNING CATEGORIES</div>
-          <h2 className="section-title">Choose What You Want to<br /><span className="gradient-text">Learn</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/learning-categories')}>Choose What You Want to<br /><span className="gradient-text">Learn</span></h2>
           <p className="section-desc">Pick a category and start learning English in the easiest way.</p>
         </div>
         <div className="learning-grid">
@@ -845,7 +925,7 @@ const handleCategoryClick = slug => {
       <section className="section" id="how-it-works">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="route" size={14} /> HOW IT WORKS</div>
-          <h2 className="section-title">Three Steps to<br /><span className="gradient-text">Fluency</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/how-it-works')}>Three Steps to<br /><span className="gradient-text">Fluency</span></h2>
           <p className="section-desc">No complicated setup. Just sign up and start talking.</p>
         </div>
         <div className="steps-container reveal">
@@ -867,7 +947,7 @@ const handleCategoryClick = slug => {
       <section className="section word-section" id="vocab">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="book-open" size={14} /> VOCABULARY BOOST</div>
-          <h2 className="section-title">Pick Up a New Word<br /><span className="gradient-text">Every Time You Visit</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/vocabulary-boost')}>Pick Up a New Word<br /><span className="gradient-text">Every Time You Visit</span></h2>
           <p className="section-desc">Small daily additions build a powerful vocabulary over time.</p>
         </div>
         <div className="word-card reveal" key={wordIndex}>
@@ -894,7 +974,7 @@ const handleCategoryClick = slug => {
       <section className="section" id="comparison">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="bar-chart-3" size={14} /> WHY SPEAKUP</div>
-          <h2 className="section-title">See How We<br /><span className="gradient-text">Stack Up</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/why-speakup')}>See How We<br /><span className="gradient-text">Stack Up</span></h2>
           <p className="section-desc">No coaching fees. No paywalled features. Just honest, effective practice.</p>
         </div>
         <div className="comparison-wrap reveal">
@@ -924,7 +1004,7 @@ const handleCategoryClick = slug => {
       <section className="section" id="testimonials">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="heart" size={14} /> REVIEWS</div>
-          <h2 className="section-title">Loved by Learners<br /><span className="gradient-text">Worldwide</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/reviews')}>Loved by Learners<br /><span className="gradient-text">Worldwide</span></h2>
           <p className="section-desc">Real stories from real people who transformed their English speaking skills.</p>
         </div>
         <div className="testimonial-grid">
@@ -947,7 +1027,7 @@ const handleCategoryClick = slug => {
       <section className="section" id="faq">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="message-square" size={14} /> FAQ</div>
-          <h2 className="section-title">Questions?<br /><span className="gradient-text">We've Got Answers</span></h2>
+          <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/faq')}>Questions?<br /><span className="gradient-text">We've Got Answers</span></h2>
           <p className="section-desc">Everything you need to know before you start speaking.</p>
         </div>
         <div className="faq-list reveal">
@@ -1011,14 +1091,79 @@ const handleCategoryClick = slug => {
         </div>
       </section>
 
-      <footer className="footer">
-        <div className="footer-content">
-          <div className="footer-brand"><div className="footer-brand-icon"><Icon name="mic" size={16} /></div> SpeakUp</div>
-          <ul className="footer-links">
-            {navLinks.map(l => <li key={l.id}><a href={`#${l.id}`} onClick={e => { e.preventDefault(); scrollTo(l.id); }}>{l.label}</a></li>)}
-            {!user && <li><a href="#" onClick={e => { e.preventDefault(); openAuth('login'); }}>Log In</a></li>}
-          </ul>
-          <div className="footer-copy">© 2025 SpeakUp. Made with ❤️ in Chennai. All rights reserved.</div>
+      <footer className="footer footer-advanced">
+        <div className="footer-content-advanced footer-content-3col">
+
+          {/* Column 1 — Brand + About */}
+          <div className="footer-col footer-col-brand">
+            <div className="footer-brand">
+              <div className="footer-brand-icon"><Icon name="mic" size={16} /></div> SpeakUp
+            </div>
+            <p className="footer-about-text">
+              Master real English conversations with AI-powered practice.
+              Free forever — no trial, no credit card, ever.
+            </p>
+            <div className="footer-newsletter">
+              <label className="footer-newsletter-label">Get learning tips in your inbox</label>
+              <form
+                className="footer-newsletter-form"
+                onSubmit={e => {
+                  e.preventDefault();
+                  showToast("Subscribed! Check your inbox soon.");
+                  e.target.reset();
+                }}
+              >
+                <input
+                  type="email"
+                  className="footer-newsletter-input"
+                  placeholder="you@example.com"
+                  required
+                />
+                <button type="submit" className="footer-newsletter-btn" aria-label="Subscribe">
+                  <Icon name="send" size={15} />
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Column 2 — Quick Links */}
+          <div className="footer-col">
+            <div className="footer-col-title">Quick Links</div>
+            <ul className="footer-links footer-links-vertical">
+              {navLinks.map(l => (
+                <li key={l.id}>
+                  <a href={`#${l.id}`} onClick={e => { e.preventDefault(); scrollTo(l.id); }}>{l.label}</a>
+                </li>
+              ))}
+              {!user && <li><a href="#" onClick={e => { e.preventDefault(); openAuth('login'); }}>Log In</a></li>}
+            </ul>
+          </div>
+
+          {/* Column 3 — Categories */}
+          <div className="footer-col">
+            <div className="footer-col-title">Categories</div>
+            <ul className="footer-links footer-links-vertical">
+              {learningCategories.map(c => (
+                <li key={c.slug}>
+                  <a
+                    href="#"
+                    onClick={e => { e.preventDefault(); handleCategoryClick(c.slug); }}
+                  >
+                    {c.title}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="footer-bottom">
+          <div className="footer-copy">© 2025 SpeakUp. Made with ❤️ in Tiruchendur. All rights reserved.</div>
+          <div className="footer-bottom-links">
+            <a href="#" onClick={e => e.preventDefault()}>Privacy Policy</a>
+            <span className="footer-bottom-dot">•</span>
+            <a href="#" onClick={e => e.preventDefault()}>Terms of Service</a>
+          </div>
         </div>
       </footer>
 
@@ -1030,7 +1175,13 @@ const handleCategoryClick = slug => {
               <div className="auth-logo-icon"><Icon name="mic" size={22} /></div>
               <div className="auth-logo-text">SpeakUp</div>
             </div>
-            <div className="auth-subtitle">{authMode === 'login' ? 'Welcome back! Log in to continue learning.' : 'Create your account and start speaking!'}</div>
+            <div className="auth-subtitle">
+  {authMode === 'login'
+    ? 'Welcome back! Log in to continue learning.'
+    : googleSignupInfo
+      ? 'Just a couple more details to finish setting up your account'
+      : 'Create your account and start speaking!'}
+</div>
             <div className="auth-tabs">
               <button className={`auth-tab${authMode === 'login' ? ' active' : ''}`} onClick={() => switchTab('login')}>Log In</button>
               <button className={`auth-tab${authMode === 'signup' ? ' active' : ''}`} onClick={() => switchTab('signup')}>Sign Up</button>
@@ -1051,11 +1202,28 @@ const handleCategoryClick = slug => {
                   onClick={handleGoogleLogin}
                 ><Icon name="chrome" size={18} /> Continue with Google</button>
               </form>
-            ) : (
-              <form className="auth-form" onSubmit={handleSignup}>
-                <input type="text" className="auth-input" placeholder="Full name" name="signupName" required />
-                <input type="email" className="auth-input" placeholder="Email address" name="signupEmail" required />
-                <input type="password" className="auth-input" placeholder="Create password" name="signupPassword" minLength={6} required />
+                        ) : (
+                            <form className="auth-form" onSubmit={handleSignup} key={googleSignupInfo?.email || 'manual-signup'}>
+                <input
+                  type="text"
+                  className="auth-input"
+                  placeholder="Full name"
+                  name="signupName"
+                  defaultValue={googleSignupInfo?.username || ''}
+                  required
+                />
+                <input
+                  type="email"
+                  className="auth-input"
+                  placeholder="Email address"
+                  name="signupEmail"
+                  defaultValue={googleSignupInfo?.email || ''}
+                  disabled={!!googleSignupInfo}
+                  required
+                />
+                {!googleSignupInfo && (
+                  <input type="password" className="auth-input" placeholder="Create password" name="signupPassword" minLength={6} required />
+                )}
                 <div className="auth-gender-row">
                   <label className="auth-gender-option">
                     <input type="radio" name="signupGender" value="female" defaultChecked /> Girl
@@ -1114,21 +1282,22 @@ const handleCategoryClick = slug => {
                   <option value="Romanian">Romanian</option>
                   <option value="Other">Other</option>
                 </select>
-                {signupError && <div className="auth-error">{signupError}</div>}
+                                {signupError && <div className="auth-error">{signupError}</div>}
                 <button type="submit" className="auth-btn" disabled={signupLoading}>
                   {signupLoading ? 'Creating account…' : 'Create Account →'}
                 </button>
-                <div className="auth-divider"><div className="auth-divider-line"></div><div className="auth-divider-text">or</div><div className="auth-divider-line"></div></div>
-                <button type="button" className="auth-google" onClick={() => showToast('Google sign-in coming soon!')}><Icon name="chrome" size={18} /> Continue with Google</button>
               </form>
             )}
 
-            <div className="auth-footer">
-              {authMode === 'login' ? <>New here? <a onClick={() => switchTab('signup')}>Create an account</a></> : <>Already have an account? <a onClick={() => switchTab('login')}>Log in</a></>}
+                        <div className="auth-footer">
+              {authMode === 'login'
+                ? <>New here? <a onClick={() => switchTab('signup')}>Create an account</a></>
+                : <>Already have an account, or prefer Google? <a onClick={() => switchTab('login')}>Log in here</a></>}
             </div>
           </div>
         </div>
       )}
+    
 
       {/* ── FLOATING PRACTICE BUTTON — always opens the full categories list,
           distinct from the continue banner's "go back to last category". ── */}
@@ -1140,10 +1309,6 @@ const handleCategoryClick = slug => {
         <span className="floating-practice-label">Practice Now</span>
       </button>
 
-      <div className={`toast${toastShow ? ' show' : ''}`}>
-        <div className="toast-icon"><Icon name="check" size={14} /></div>
-        <span>{toastMsg}</span>
-      </div>
       <div className={`toast${toastShow ? ' show' : ''}`}>
         <div className="toast-icon"><Icon name="check" size={14} /></div>
         <span>{toastMsg}</span>

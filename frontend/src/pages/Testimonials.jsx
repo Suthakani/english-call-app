@@ -1,5 +1,6 @@
-import { Star, Quote } from "lucide-react";
 
+import { Star, Quote, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 const testimonials = [
   {
     name: "Priya Sharma",
@@ -32,18 +33,23 @@ const testimonials = [
 ];
 
 export default function Testimonials() {
+  const navigate = useNavigate();
   return (
     <section className="bg-[#0b0f0e] py-20 px-6">
       <div className="max-w-6xl mx-auto text-center mb-14">
         <span className="inline-block bg-emerald-500/10 text-emerald-400 text-sm font-medium px-4 py-1.5 rounded-full mb-4">
           ⭐ Loved by 50K+ Learners
         </span>
-        <h2 className="text-4xl md:text-5xl font-extrabold text-white">
-          What Our{" "}
-          <span className="bg-gradient-to-r from-emerald-400 to-yellow-400 bg-clip-text text-transparent">
-            Learners Say
-          </span>
-        </h2>
+        <h2
+  className="text-4xl md:text-5xl font-extrabold text-white cursor-pointer inline-flex items-center gap-3 group"
+  onClick={() => navigate('/reviews')}
+>
+  What Our{" "}
+  <span className="bg-gradient-to-r from-emerald-400 to-yellow-400 bg-clip-text text-transparent">
+    Learners Say
+  </span>
+  <ArrowRight className="w-6 h-6 text-emerald-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+</h2>
         <p className="text-gray-400 mt-4 max-w-2xl mx-auto">
           Real stories from real people who transformed their spoken English with SpeakUp.
         </p>

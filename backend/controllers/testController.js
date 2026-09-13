@@ -46,8 +46,28 @@ Respond ONLY with valid JSON, no markdown, in this exact shape:
     { "sentence": "sentence written in ${language}", "referenceEnglish": "correct English translation", "difficulty": "basic" }
   ]
 }`;
-  const result = await callGroq(prompt, 0.7, "llama-3.3-70b-versatile");
+  // generateQuestions — was: callGroq(prompt, 0.7, "llama-3.3-70b-versatile")
+const result = await callGroq(prompt, 0.7, "openai/gpt-oss-120b");
   return result.questions;
+};
+
+// Fixed instruction sentence shown above the test, translated into the
+// user's native language so non-Tamil speakers don't see Tanglish text.
+// English fallback used if translation fails for any reason.
+const INSTRUCTION_EN = "A sentence will appear in your native language. Type its correct English translation. This helps us match you to the right category.";
+
+const translateInstruction = async (language) => {
+  if (!language || language.toLowerCase() === "english") return INSTRUCTION_EN;
+  try {
+    const prompt = `Translate this English sentence into natural, everyday ${language} (using proper ${language} script, not transliteration). Respond ONLY with valid JSON, no markdown, in this exact shape: { "translated": "the translation here" }
+
+Sentence: "${INSTRUCTION_EN}"`;
+    const result = await callGroq(prompt, 0.3, "openai/gpt-oss-120b");
+    return result.translated || INSTRUCTION_EN;
+  } catch (err) {
+    console.error("Instruction translation failed:", err.message);
+    return INSTRUCTION_EN;
+  }
 };
 
 // @route GET /api/test/questions
@@ -56,7 +76,10 @@ Respond ONLY with valid JSON, no markdown, in this exact shape:
 const getQuestions = async (req, res) => {
   try {
     const language = req.user.nativeLanguage || "Tamil";
-    const generated = await generateQuestions(language);
+    const [generated, instruction] = await Promise.all([
+      generateQuestions(language),
+      translateInstruction(language),
+    ]);
 
     const questions = generated.map((q, i) => ({
       id: `q${i + 1}`,
@@ -72,7 +95,10 @@ const getQuestions = async (req, res) => {
     );
 
     // only send sentence + id + difficulty to client, never the reference answer
-    res.json(questions.map(({ id, sentence, difficulty }) => ({ id, sentence, difficulty })));
+    res.json({
+      questions: questions.map(({ id, sentence, difficulty }) => ({ id, sentence, difficulty })),
+      instruction,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Could not generate test questions. Check GROQ_API_KEY.", error: error.message });
@@ -171,7 +197,8 @@ decide "isCorrect" based on that reasoning — don't decide first and justify af
     { "index": 1, "reasoning": "one short sentence comparing actual meanings", "isCorrect": boolean, "score": number (0 to 1), "feedback": "very short simple Tanglish feedback explaining what was right/wrong. If correct despite differing from the reference, briefly say why it's still correct (e.g. 'same meaning, just contraction')." }
   ]
 }`;
-  const result = await callGroq(prompt, 0.2, "llama-3.3-70b-versatile");
+  // gradeTranslationsWithAI — was: callGroq(prompt, 0.2, "llama-3.3-70b-versatile")
+const result = await callGroq(prompt, 0.2, "openai/gpt-oss-120b");
   return result.results;
 };
 
@@ -222,11 +249,10 @@ const submitTest = async (req, res) => {
         difficulty: item.difficulty,
       });
     });
-
     let assignedLevel = "basic";
     const avgDifficulty = score > 0 ? difficultySum / score : 0;
-    if (avgDifficulty >= 2.3 && score >= items.length * 0.6) assignedLevel = "advanced";
-    else if (avgDifficulty >= 1.4 && score >= items.length * 0.4) assignedLevel = "intermediate";
+    if (avgDifficulty >= 1.8 && score >= items.length * 0.6) assignedLevel = "advanced";
+    else if (avgDifficulty >= 1.3 && score >= items.length * 0.4) assignedLevel = "intermediate";
 
     const result = await TestResult.create({
       user: req.user._id,

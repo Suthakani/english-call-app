@@ -7,7 +7,9 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     password: { type: String, required: true },
     authProvider: { type: String, enum: ["email", "google"], default: "email" },
+    profileComplete: { type: Boolean, default: true },
     nativeLanguage: { type: String, default: "Tamil" },
+    gender: { type: String, enum: ["female", "male", "neutral"], default: "neutral" },
 
     isVerified: { type: Boolean, default: false },
     verificationOTP: { type: String },
@@ -36,8 +38,19 @@ quizLevels: {
   listening: { type: Number, default: 1 },
   pronunciation: { type: Number, default: 1 },
   "daily-practice": { type: Number, default: 1 },
+  speaking: { type: Number, default: 1 }, // NEW — level progress for the call-practice leveled system
 },
 wonCycles: [{ type: Number }],
+championBadges: [
+  {
+    cycleIndex: { type: Number, required: true },
+    cycleStart: { type: Date },
+    cycleEnd: { type: Date },
+    points: { type: Number },
+    awardedAt: { type: Date, default: Date.now },
+    _id: false,
+  },
+],
 unseenWinCycle: { type: Number, default: null },
 lastActiveDate: { type: Date, default: null },
 streakFreezeCount: { type: Number, default: 1 }, // NEW — starts with 1 free freeze
@@ -72,9 +85,12 @@ lastReminderSentAt: { type: Date, default: null },
       longestCallMinutes: { type: Number, default: 0 },
       bestChallengeScore: { type: Number, default: 0 },
     },
-    certificates: [
+  
+certificates: [
   {
-    category: { type: String, required: true },
+    category: { type: String }, // now optional — only set for quiz-level certs
+    type: { type: String, enum: ["quiz", "champion"], default: "quiz" }, // NEW
+    cycleIndex: { type: Number }, // NEW — set only when type === "champion"
     issuedAt: { type: Date, default: Date.now },
     // NEW — stable, unique certificate ID used for QR-code verification.
     // Computed once at issuance (see quizController.completeLevel) and
@@ -87,6 +103,10 @@ lastReminderSentAt: { type: Date, default: null },
     _id: false,
   },
 ],
+    // NEW — stable referral code, generated once at signup. Used to build
+    // the "Invite Friends" link on the profile page.
+    masteredCategories: [{ type: String }],
+
     // NEW — stable referral code, generated once at signup. Used to build
     // the "Invite Friends" link on the profile page.
     referralCode: { type: String, unique: true, sparse: true },

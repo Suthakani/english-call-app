@@ -99,9 +99,16 @@ const finalizePastCyclesIfNeeded = async () => {
       points: top.points,
     });
 
+    
+    const certId = `CHAMP-${idx}-${top._id.toString().slice(-6).toUpperCase()}`;
+
     await User.findByIdAndUpdate(top._id, {
       $inc: { streakFreezeCount: 3 },
-      $push: { wonCycles: idx },
+      $push: {
+        wonCycles: idx,
+        championBadges: { cycleIndex: idx, cycleStart: start, cycleEnd: end, points: top.points },
+        certificates: { type: "champion", cycleIndex: idx, certId },
+      },
       $set: { unseenWinCycle: idx },
     });
   }

@@ -8,7 +8,7 @@ export const AuthProvider = ({ children }) => {
     const stored = localStorage.getItem("user");
     return stored ? JSON.parse(stored) : null;
   });
-
+const [profileLoaded, setProfileLoaded] = useState(false);
   // Avatar images (base64 data URIs) can be several hundred KB — easily
   // blowing past localStorage's ~5MB total quota. We deliberately never
   // write avatarUrl to localStorage; only the small identity fields are
@@ -51,17 +51,21 @@ export const AuthProvider = ({ children }) => {
   // navbar falling back to the generated placeholder.
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (!token) return;
+    if (!token) {
+      setProfileLoaded(true); // not logged in — nothing to wait for
+      return;
+    }
     api.get('/user/profile')
       .then(({ data }) => {
         setUser(prev => (prev ? { ...prev, ...data } : prev));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setProfileLoaded(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ user, login, logout, updateUser, profileLoaded }}>
       {children}
     </AuthContext.Provider>
   );
