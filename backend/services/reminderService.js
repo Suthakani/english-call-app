@@ -19,7 +19,7 @@
 
 const cron = require('node-cron');
 const User = require('../models/User');
-const { sendReminderEmail } = require('../utils/sendEmail');
+const { sendActiveEncouragementEmail, sendInactiveWinBackEmail } = require('../utils/sendEmail');
 
 function toDateOnly(d) {
   const date = new Date(d);
@@ -27,41 +27,56 @@ function toDateOnly(d) {
   return date;
 }
 
-// "19:00" -> 19
-function hourFromReminderTime(reminderTime) {
-  if (!reminderTime) return 19;
-  const parts = reminderTime.split(':');
-  const n = parseInt(parts[0], 10);
-  return Number.isNaN(n) ? 19 : n;
-}
+// User picks reminderTime in IST (e.g. "19:00" = 7 PM IST). Convert that
+// wall-clock time to UTC hour+minute, since the server/cron runs in UTC.
+const IST_OFFSET_MINUTES = 330; // UTC+5:30
 
+function utcMinutesFromReminderTime(reminderTime) {
+  if (!reminderTime) reminderTime = '19:00';
+  const parts = reminderTime.split(':');
+  const localHour = parseInt(parts[0], 10);
+  const localMinute = parseInt(parts[1], 10) || 0;
+  const safeHour = Number.isNaN(localHour) ? 19 : localHour;
+
+  const totalMinutesIST = safeHour * 60 + localMinute;
+  const totalMinutesUTC = ((totalMinutesIST - IST_OFFSET_MINUTES) + 1440) % 1440;
+  return totalMinutesUTC; // 0-1439, minutes since UTC midnight
+}
 async function sendReminderEmails() {
   const now = new Date();
-  const currentHour = now.getHours();
+  const currentMinutesUTC = now.getUTCHours() * 60 + now.getUTCMinutes();
   const todayUTC = toDateOnly(now);
 
   const candidates = await User.find({
     email: { $exists: true, $ne: null },
     isVerified: true,
-    $or: [{ lastActiveDate: null }, { lastActiveDate: { $lt: todayUTC } }],
   });
 
   const dueNow = candidates.filter(u => {
-    if (hourFromReminderTime(u.reminderTime) !== currentHour) return false;
+    const targetMinutesUTC = utcMinutesFromReminderTime(u.reminderTime);
+    const diff = Math.abs(currentMinutesUTC - targetMinutesUTC);
+    if (diff > 7 && diff < 1440 - 7) return false;
     if (u.lastReminderSentAt && toDateOnly(u.lastReminderSentAt).getTime() === todayUTC.getTime()) {
       return false;
     }
     return true;
   });
 
-  console.log(`[reminderService] ${dueNow.length} user(s) due for a reminder at hour ${currentHour}.`);
+  console.log(`[reminderService] ${dueNow.length} user(s) due for a reminder (current UTC ${Math.floor(currentMinutesUTC / 60)}:${String(currentMinutesUTC % 60).padStart(2, '0')}).`);
 
   for (const user of dueNow) {
     try {
-      await sendReminderEmail(user.email, user.username || 'there', user.streakDays || 0);
+      const isActive = user.lastActiveDate && toDateOnly(user.lastActiveDate).getTime() >= todayUTC.getTime() - 86400000;
+
+      if (isActive) {
+        await sendActiveEncouragementEmail(user.email, user.username || 'there', user.streakDays || 0);
+      } else {
+        await sendInactiveWinBackEmail(user.email, user.username || 'there', user.streakDays || 0);
+      }
+
       user.lastReminderSentAt = now;
       await user.save();
-      console.log(`[reminderService] Sent reminder to ${user.email}`);
+      console.log(`[reminderService] Sent ${isActive ? 'encouragement' : 'win-back'} email to ${user.email}`);
     } catch (err) {
       console.error(`[reminderService] Failed to email ${user.email}:`, err.message);
     }
@@ -69,11 +84,11 @@ async function sendReminderEmails() {
 }
 
 function startReminderCron() {
-  cron.schedule('0 * * * *', () => {
+  cron.schedule('*/15 * * * *', () => {
     console.log('[reminderService] Hourly reminder check running...');
     sendReminderEmails().catch(err => console.error('[reminderService] Job failed:', err));
   });
-  console.log('[reminderService] Cron job scheduled (hourly, per-user reminderTime).');
+  console.log('[reminderService] Cron job scheduled (every 15 min, per-user reminderTime).');
 }
 
 module.exports = { startReminderCron, sendReminderEmails };

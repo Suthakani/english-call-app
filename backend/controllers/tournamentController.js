@@ -2,7 +2,7 @@ const User = require("../models/User");
 const TournamentWinner = require("../models/TournamentWinner");
 const HallOfFame = require("../models/HallOfFame");
 const { getPeriodKey, getPeriodBounds, getPreviousPeriodKey } = require("../utils/tournamentUtils");
-
+const { sendTournamentWinEmail } = require("../utils/sendEmail"); // ← ADD THIS
 const TOP_N = 10;
 
 // Builds a certificate ID for a tournament placement.
@@ -72,7 +72,19 @@ const finalizeIfNeeded = async (periodType) => {
       })
     )
   );
-
+  // ── NEW: email each winner ──
+  await Promise.all(
+    winners.map(async (w) => {
+      try {
+        const winnerUser = await User.findById(w.user).select("email");
+        if (winnerUser?.email) {
+          await sendTournamentWinEmail(winnerUser.email, w.username, w.rank, periodType, w.points);
+        }
+      } catch (e) {
+        console.error(`Failed to email tournament winner ${w.username}:`, e.message);
+      }
+    })
+  );
   // Yearly tournaments additionally crown a permanent Hall of Fame entry
   // for the #1 finisher.
   if (periodType === "yearly") {

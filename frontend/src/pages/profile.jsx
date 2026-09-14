@@ -312,11 +312,15 @@ const handleCustomAvatarSave = async (config) => {
   }, []);
 
   // Saved vocabulary — expects [{ id, word, meaning, example, status }]
+  // Refetches every time the Learning tab is opened, so a word saved
+  // from the Vocabulary detail page (or anywhere else) shows up here
+  // without needing a full page reload.
   useEffect(() => {
+    if (activeTab !== 'learning') return;
     api.get('/user/vocabulary')
       .then(({ data }) => setVocabWords(data))
       .catch(err => console.error('Failed to load vocabulary:', err.response?.data || err.message));
-  }, []);
+  }, [activeTab]);
 
   // Past call sessions — expects [{ id, date, category, durationMinutes, correctionsCount, transcript: [{role,text}] }]
   useEffect(() => {

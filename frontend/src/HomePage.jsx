@@ -8,7 +8,7 @@ import './homepage.css';
 import './pages/detailPages.css';
 import BottomNav from './components/BottomNav.jsx';
 import EventBanner from './components/EventBanner.jsx';
-
+import Logo from './components/Logo.jsx';
 const features = [
   { icon: 'mic', title: 'Voice Conversations', desc: 'Talk to our AI in real-time. It responds naturally, just like speaking with a real person.' },
   { icon: 'message-square', title: 'Instant Corrections', desc: 'Get grammar and pronunciation feedback instantly. Learn from every mistake you make.' },
@@ -195,27 +195,7 @@ const Icon = ({ name, size = 24 }) => {
   }, [name, size]);
   return <span ref={ref} style={{ display: 'inline-flex', alignItems: 'center' }} />;
 };
-const Logo = ({ size = 22 }) => (
-  <svg width={size} height={size} viewBox="0 0 44 44" className="speakup-logo-mark" xmlns="http://www.w3.org/2000/svg">
-    <defs>
-      <linearGradient id="logoGrad" x1="0%" y1="100%" x2="100%" y2="0%">
-        <stop offset="0%" stopColor="#059669" />
-        <stop offset="100%" stopColor="#10b981" />
-      </linearGradient>
-      <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor="#10b981" />
-        <stop offset="50%" stopColor="#d4af37" />
-        <stop offset="100%" stopColor="#10b981" />
-      </linearGradient>
-    </defs>
-    <circle className="logo-ring" cx="22" cy="22" r="20.5" fill="none" stroke="url(#ringGrad)" strokeWidth="1.5" strokeDasharray="6 5" strokeLinecap="round" />
-    <circle cx="22" cy="22" r="17" fill="url(#logoGrad)" />
-    <rect className="logo-eq logo-eq-1" x="13" y="18" width="3" height="8" rx="1.5" fill="#ffffff" />
-    <rect className="logo-eq logo-eq-2" x="18" y="15" width="3" height="14" rx="1.5" fill="#ffffff" />
-    <rect className="logo-eq logo-eq-3" x="23" y="12" width="3" height="20" rx="1.5" fill="#ffffff" />
-    <rect className="logo-eq logo-eq-4" x="28" y="15" width="3" height="14" rx="1.5" fill="#ffffff" />
-  </svg>
-);
+ 
 const CountUpStat = ({ target, suffix, label, decimals = 0 }) => {
   const [value, setValue] = useState(0);
   const ref = useRef(null);
@@ -926,14 +906,14 @@ const handleFeedbackSubmit = async e => {
         </div>
       </section>
 
-      <section className="section" id="learning-categories">
+           <section className="section" id="learning-categories">
         <div className="section-header reveal">
           <div className="section-tag"><Icon name="route" size={14} /> LEARNING CATEGORIES</div>
           <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/learning-categories')}>Choose What You Want to<br /><span className="gradient-text">Learn</span></h2>
           <p className="section-desc">Pick a category and start learning English in the easiest way.</p>
         </div>
         <div className="learning-grid">
-          {learningCategories.map((item, i) => (
+          {learningCategories.slice(0, 5).map((item, i) => (
             <div
               className={`learning-card reveal reveal-delay-${(i % 3) + 1}`}
               key={i}
@@ -947,14 +927,14 @@ const handleFeedbackSubmit = async e => {
               <div className="learning-card-shine"></div>
               <div className="learning-card-image">
                 <img
-  src={item.image}
-  alt={item.title}
-  loading="lazy"
-  onError={e => {
-    e.target.onerror = null;
-    e.target.src = `https://placehold.co/600x400/0e1f19/10b981?text=${encodeURIComponent(item.title)}`;
-  }}
-/>
+                  src={item.image}
+                  alt={item.title}
+                  loading="lazy"
+                  onError={e => {
+                    e.target.onerror = null;
+                    e.target.src = `https://placehold.co/600x400/0e1f19/10b981?text=${encodeURIComponent(item.title)}`;
+                  }}
+                />
                 <span className="learning-badge learning-badge-overlay">{item.level}</span>
               </div>
               <div className="learning-card-body">
@@ -964,9 +944,25 @@ const handleFeedbackSubmit = async e => {
               </div>
             </div>
           ))}
+
+          {/* Know More card — goes to a brand new "all categories" page */}
+          <div
+            className="learning-card learning-card-more reveal"
+            role="button"
+            tabIndex={0}
+            onClick={() => navigate('/all-categories')}
+            onKeyDown={e => { if (e.key === 'Enter') navigate('/all-categories'); }}
+            onMouseMove={handleCardTilt}
+            onMouseLeave={resetCardTilt}
+          >
+            <div className="learning-card-more-inner">
+              <div className="learning-icon icon-pulse"><Icon name="arrow-right" size={22} /></div>
+              <h3 className="learning-title">Know More</h3>
+              <p className="learning-desc">See all learning categories we offer</p>
+            </div>
+          </div>
         </div>
       </section>
-
       <section className="section level-check-section" id="level-check">
         <div className="level-check-card reveal">
           <div className="level-check-icon"><Icon name="target" size={30} /></div>

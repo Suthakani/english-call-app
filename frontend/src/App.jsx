@@ -32,6 +32,7 @@ import StreakDetailPage from "./pages/StreakDetailPage.jsx";
 import FindPartner from './pages/FindPartner.jsx';
 import PendingMatches from './pages/admin/PendingMatches.jsx';
 import PracticeCall from './pages/PracticeCall.jsx';
+import AllCategories from "./pages/AllCategories.jsx";
 const Protected = ({ children }) => {
   const { user } = useAuth();
   return user ? children : <Navigate to="/" />;
@@ -189,7 +190,7 @@ export default function App() {
 <Route path="/find-partner" element={<FindPartner />} />
 <Route path="/admin/matches" element={<PendingMatches />} />
 <Route path="/practice-call/:sessionId" element={<PracticeCall />} />
-
+<Route path="/all-categories" element={<AllCategories />} />
 {/* Catch-all: unknown URLs go to homepage */}
 <Route path="*" element={<Navigate to="/" />} />
 </Routes>

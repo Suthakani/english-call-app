@@ -3,6 +3,7 @@ const Event = require("../models/Event");
 const EventSubmission = require("../models/EventSubmission");
 const User = require("../models/User");
 const { getPeriodKey, getPeriodBounds } = require("../utils/tournamentUtils");
+const { sendEventWinEmail } = require("../utils/sendEmail");   // ← ADD HERE, top
 const {
   getEventQuestions,
   gradeObjectiveAnswers,
@@ -295,6 +296,8 @@ const finalizeEventIfNeeded = async (periodKey) => {
   event.winnersFinalized = true;
   await event.save();
 
+
+      
   await Promise.all(
     winners.map((w) =>
       User.findByIdAndUpdate(w.user, {
@@ -311,8 +314,23 @@ const finalizeEventIfNeeded = async (periodKey) => {
     )
   );
 
+  // ── NEW: email each winner ──
+  await Promise.all(
+    winners.map(async (w) => {
+      try {
+        const winnerUser = await User.findById(w.user).select("email");
+        if (winnerUser?.email) {
+          await sendEventWinEmail(winnerUser.email, w.username, w.rank, w.score);
+        }
+      } catch (e) {
+        console.error(`Failed to email event winner ${w.username}:`, e.message);
+      }
+    })
+  );
+
   return event;
 };
+ 
 
 // @route GET /api/event/past
 // Recent closed events with their finalized winners.

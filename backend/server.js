@@ -22,7 +22,7 @@ const matchRoutes = require("./routes/matchRoutes");
 
 // NEW — daily inactive-user email reminder cron
 const { startReminderCron } = require("./services/reminderService");
-
+const { startEventReminderCron } = require("./services/eventReminderService");
 const app = express();
 
 connectDB();
@@ -79,6 +79,6 @@ app.set("io", io); // routes access this via req.app.get('io')
 
 // Start the hourly inactive-user reminder email check.
 startReminderCron();
-
+startEventReminderCron();
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
