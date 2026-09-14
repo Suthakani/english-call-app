@@ -1,6 +1,6 @@
+
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext.jsx";
 import api from "../api/axiosConfig.js";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -12,7 +12,10 @@ const CATEGORY_DISPLAY_NAMES = {
   vocabulary: "Vocabulary",
   listening: "Listening",
   pronunciation: "Pronunciation",
+  speaking: "Speaking",
 };
+
+const PERIOD_TYPE_LABELS = { weekly: "Weekly", monthly: "Monthly", yearly: "Yearly" };
 
 // ── Customize these to match your brand ──
 const COMPANY_NAME = "SpeakUp";
@@ -20,28 +23,43 @@ const COMPANY_TAGLINE = "Learn English Confidently";
 const SIGNER_NAME = "SuthaKrish";
 const SIGNER_TITLE = "Founder, SpeakUp";
 
+// Builds the two lines of certificate body text based on cert type —
+// everything else (border, seal, QR, signature, download) is shared
+// across quiz mastery, champion, tournament, event, and hall-of-fame certs.
+const buildCertificateCopy = (cert) => {
+  if (!cert) return { line1: "", title: "" };
+  switch (cert.type) {
+    case "champion":
+      return { line1: "for being crowned Champion of", title: `Leaderboard Cycle #${(cert.cycleIndex ?? 0) + 1}` };
+    case "tournament":
+      return { line1: `for placing #${cert.rank} in the`, title: `${PERIOD_TYPE_LABELS[cert.periodType] || ""} Tournament — ${cert.periodKey}` };
+    case "event":
+      return { line1: `for placing #${cert.rank} in the`, title: `SpeakUp Proficiency Challenge — ${cert.periodKey}` };
+    case "hall-of-fame":
+      return { line1: "for being crowned SpeakUp Champion of the Year", title: cert.periodKey };
+    case "quiz":
+    default:
+      return { line1: "for successfully completing all 100 levels in", title: CATEGORY_DISPLAY_NAMES[cert.category] || cert.category };
+  }
+};
+
+const CERT_THEMES = {
+  champion:      { accent: "#c9a24b", accentDark: "#b8862f", titleColor: "#0e6b4f" },
+  tournament:    { accent: "#4f7fe0", accentDark: "#2b4fb8", titleColor: "#1d3a8f" },
+  event:         { accent: "#34c98f", accentDark: "#0e9e6c", titleColor: "#0b5c3d" },
+  "hall-of-fame":{ accent: "#a855f7", accentDark: "#7c3aed", titleColor: "#6b21a8" },
+  quiz:          { accent: "#c9a24b", accentDark: "#b8862f", titleColor: "#0e6b4f" },
+};
+
+const RANK_MEDALS = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
 export default function Certificate() {
-  const { category: rawCategory } = useParams();
-  const category = rawCategory === "daily-practice" ? "dailyPractice" : rawCategory;
-  const { user } = useAuth();
+  const { certId: rawCertId } = useParams();
   const navigate = useNavigate();
   const certRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
 
-  // NOTE: the User model (backend/models/User.js) stores the learner's
-  // name under `username`, not `name` — there is no `name` field on the
-  // schema at all. `user?.username` is what profile.jsx already reads
-  // too, so this keeps them consistent.
-  const learnerName = user?.username || "Learner";
-
-  // ── Real certificate data from the backend ──
-  // certId and issuedAt now come from the server (backend/models/User.js
-  // `certificates` subdocument), not computed client-side, so the QR
-  // code always points at a certId the /verify endpoint actually
-  // recognizes. While this is loading we show a lightweight placeholder
-  // instead of the full certificate, to avoid flashing a fake/incorrect
-  // certId that wouldn't match what verifyCertificate returns.
-  const [certData, setCertData] = useState(null); // { certId, issuedAt, username }
+  const [certData, setCertData] = useState(null); // full verify response
   const [loadingCert, setLoadingCert] = useState(true);
   const [certError, setCertError] = useState("");
 
@@ -50,17 +68,13 @@ export default function Certificate() {
     setLoadingCert(true);
     setCertError("");
     api
-      .get(`/quiz/certificate/${category}`)
+      .get(`/quiz/verify/${rawCertId}`)
       .then(({ data }) => {
         if (active) setCertData(data);
       })
       .catch((err) => {
         if (active) {
-          setCertError(
-            err.response?.status === 404
-              ? "You haven't earned this certificate yet — complete all 100 levels first."
-              : "Could not load your certificate right now."
-          );
+          setCertError(err.response?.data?.message || "Certificate not found.");
         }
       })
       .finally(() => {
@@ -69,7 +83,10 @@ export default function Certificate() {
     return () => {
       active = false;
     };
-  }, [category]);
+  }, [rawCertId]);
+
+  const learnerName = certData?.username || "Learner";
+  const { line1, title } = buildCertificateCopy(certData);
 
   const dateStr = certData?.issuedAt
     ? new Date(certData.issuedAt).toLocaleDateString("en-IN", {
@@ -79,7 +96,9 @@ export default function Certificate() {
       })
     : "";
 
-  const certId = certData?.certId || "";
+const certId = certData?.certId || "";
+  const theme = CERT_THEMES[certData?.type] || CERT_THEMES.quiz;
+  const showMedal = ["tournament", "event"].includes(certData?.type) && RANK_MEDALS[certData?.rank];
 
   // The QR code now encodes a real, scannable verification LINK instead
   // of plain text. Scanning it opens /verify/:certId on this site, which
@@ -107,7 +126,7 @@ export default function Certificate() {
       const y = Math.max(0, (pdfHeight - imgHeight) / 2);
 
       pdf.addImage(imgData, "PNG", 0, y, imgWidth, imgHeight);
-      pdf.save(`${CATEGORY_DISPLAY_NAMES[category] || category}-Certificate.pdf`);
+      pdf.save(`SpeakUp-Certificate-${certId}.pdf`);
     } catch (err) {
       console.error("Failed to generate certificate PDF:", err);
     } finally {
@@ -138,7 +157,15 @@ export default function Certificate() {
       <button className="tp-back" onClick={() => navigate("/")}>← Back to Categories</button>
 
       <div className="cert-frame" ref={certRef}>
-        <div className="cert-border">
+        <div
+          className="cert-border"
+          style={{
+            "--cert-accent": theme.accent,
+            "--cert-accent-dark": theme.accentDark,
+            "--cert-title-color": theme.titleColor,
+          }}
+        >
+          {showMedal && <div className="cert-rank-medal">{RANK_MEDALS[certData.rank]}</div>}
           {/* corner flourishes */}
           <span className="cert-corner cert-corner-tl" />
           <span className="cert-corner cert-corner-tr" />
@@ -163,12 +190,9 @@ export default function Certificate() {
           <p className="cert-presented">This certificate is proudly presented to</p>
           <h1 className="cert-name">{learnerName}</h1>
 
-          <p className="cert-body">
-            for successfully completing all <strong>100 levels</strong> in
-          </p>
-          <h2 className="cert-category">
-            {CATEGORY_DISPLAY_NAMES[category] || category}
-          </h2>
+         
+          <p className="cert-body">{line1}</p>
+          <h2 className="cert-category">{title}</h2>
           <p className="cert-body cert-subtext">
             demonstrating consistent dedication and measurable improvement in English proficiency.
           </p>
@@ -181,55 +205,66 @@ export default function Certificate() {
               <div className="cert-footer-caption">Date Issued</div>
             </div>
 
+          
             <div className="cert-seal">
               <svg className="cert-seal-svg" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <path id="sealTextPath" d="M 80,80 m -62,0 a 62,62 0 1,1 124,0 a 62,62 0 1,1 -124,0" />
-                  <radialGradient id="sealFace" cx="35%" cy="30%" r="75%">
-                    <stop offset="0%" stopColor="#f4e6b8" />
-                    <stop offset="55%" stopColor="#c9a24b" />
-                    <stop offset="100%" stopColor="#8f6b1f" />
-                  </radialGradient>
+                  {/* Ink-texture filter: roughens edges + adds uneven pressure
+                      spots, like a real self-inking rubber stamp. */}
+                  <filter id="stampInk" x="-20%" y="-20%" width="140%" height="140%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="noise" />
+                    <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" />
+                  </filter>
                 </defs>
-                <circle cx="80" cy="80" r="76" fill="none" stroke="#0b5c3d" strokeWidth="2" />
-                <circle cx="80" cy="80" r="70" fill="none" stroke="#c9a24b" strokeWidth="1.5" />
-                <circle cx="80" cy="80" r="46" fill="url(#sealFace)" stroke="#0b5c3d" strokeWidth="2" />
-                <circle cx="80" cy="80" r="40" fill="none" stroke="#fffdf5" strokeWidth="1" opacity="0.6" />
-                <text className="cert-seal-curve-text">
-                  <textPath href="#sealTextPath" startOffset="0%">
-                    ✦ SPEAKUP ✦ OFFICIAL SEAL ✦ VERIFIED ✦
-                  </textPath>
-                </text>
-                <text x="80" y="76" textAnchor="middle" className="cert-seal-center-text">SK</text>
-                <text x="80" y="94" textAnchor="middle" className="cert-seal-center-year">EST. 2026</text>
+                <g className="cert-seal-stamp" filter="url(#stampInk)">
+                  <circle cx="80" cy="80" r="76" fill="none" stroke="#1d3a8f" strokeWidth="3" />
+                  <circle cx="80" cy="80" r="69" fill="none" stroke="#1d3a8f" strokeWidth="1.5" />
+                  <circle cx="80" cy="80" r="47" fill="none" stroke="#1d3a8f" strokeWidth="2.5" />
+                  <text className="cert-seal-curve-text">
+                    <textPath href="#sealTextPath" startOffset="0%">
+                      ✦ SPEAKUP ✦ OFFICIAL SEAL ✦ VERIFIED ✦
+                    </textPath>
+                  </text>
+                  <text x="80" y="76" textAnchor="middle" className="cert-seal-center-text">SK</text>
+                  <text x="80" y="94" textAnchor="middle" className="cert-seal-center-year">EST. 2026</text>
+                </g>
               </svg>
             </div>
 
             <div className="cert-footer-block">
-              <div className="cert-signature-mixed">
-                <span className="cert-sig-initials">S</span>
-                <svg className="cert-sig-tail" viewBox="0 0 90 50" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M4,32 C16,42 28,22 40,34 C50,42 60,26 72,34 C78,38 82,32 86,26"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-                <span className="cert-sig-initials cert-sig-initials-k">K</span>
-                <svg className="cert-sig-tail" viewBox="0 0 90 50" xmlns="http://www.w3.org/2000/svg">
-                  <path
-                    d="M4,30 C18,40 30,20 44,32 C54,40 64,24 76,32 C82,36 86,30 88,26"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+
+              <svg className="cert-signature-real" viewBox="0 0 260 80" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <filter id="inkTexture" x="-10%" y="-30%" width="120%" height="160%">
+                    <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="4" result="n" />
+                    <feDisplacementMap in="SourceGraphic" in2="n" scale="1.1" />
+                  </filter>
+                </defs>
+                <text
+                  x="130"
+                  y="48"
+                  textAnchor="middle"
+                  filter="url(#inkTexture)"
+                  style={{
+                    fontFamily: "'Alex Brush', 'Great Vibes', cursive",
+                    fontSize: "44px",
+                    fill: "#12244f",
+                  }}
+                >
+                  {SIGNER_NAME}
+                </text>
+                {/* underline flourish */}
+                <path
+                  d="M20,58 C60,66 100,64 140,60 C180,56 220,58 244,54"
+                  fill="none"
+                  stroke="#12244f"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  opacity="0.75"
+                  filter="url(#inkTexture)"
+                />
+              </svg>
               <div className="cert-line" />
               <div className="cert-footer-label">{SIGNER_NAME}</div>
               <div className="cert-footer-caption">{SIGNER_TITLE}</div>

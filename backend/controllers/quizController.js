@@ -239,9 +239,14 @@ const verifyCertificate = async (req, res) => {
     res.json({
       valid: true,
       username: user.username,
-      category: cert.category,
-      issuedAt: cert.issuedAt,
       certId: cert.certId,
+      issuedAt: cert.issuedAt,
+      type: cert.type || "quiz",
+      category: cert.category,       // quiz
+      cycleIndex: cert.cycleIndex,    // champion
+      periodType: cert.periodType,    // tournament
+      periodKey: cert.periodKey,      // tournament / event / hall-of-fame
+      rank: cert.rank,                // tournament / event / hall-of-fame
     });
   } catch (error) {
     console.error(error);

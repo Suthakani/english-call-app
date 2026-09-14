@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosConfig.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -395,24 +395,87 @@ const CATEGORIES_BY_LEVEL = {
     { key: "digital-currency-policy", title: "Digital Currency Policy", icon: "💱", image: "https://loremflickr.com/600/400/digital,currency", topics: ["Speaking", "Business vocabulary", "Formal grammar"] },
   ],
 };
-
+// loremflickr.com is unreliable (slow/times out often), causing broken
+// image icons before the onError fallback can kick in. Swap it out
+// proactively for a fast, always-reliable placeholder service instead
+// of waiting for it to fail.
+const reliableImage = (img, key) =>
+  img && img.includes("loremflickr.com")
+    ? `https://picsum.photos/seed/${encodeURIComponent(key)}/600/400`
+    : img;
+// Small count-up hook for the stat numbers — animates 0 → target whenever
+// the target changes (e.g. once the async stats fetch resolves), so it
+// doesn't lock onto a stale 0 from before the data arrived.
+const useCountUp = (target, duration = 900) => {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (target == null) return;
+    let raf;
+    const start = performance.now();
+    const animate = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setValue(Math.round(target * eased));
+      if (progress < 1) raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => raf && cancelAnimationFrame(raf);
+  }, [target, duration]);
+  return value;
+};
+const defaultAvatarFor = (user) => {
+  if (!user) return null;
+  if (user.avatarUrl) return user.avatarUrl;
+  const seed = user.username || user.email || 'speakup';
+  const style = user.gender === 'female' ? 'micah' : user.gender === 'male' ? 'adventurer' : 'adventurer-neutral';
+  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+};
+    
 const LEVEL_LABELS = { basic: "Beginner", intermediate: "Intermediate", advanced: "Advanced" };
 
 export default function CategorySelect() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState("");
   const [activeTopics, setActiveTopics] = useState([]); // multi-select filter chips
+  const [stats, setStats] = useState(null); // { streakDays, lessonsCompleted, weeklyGoal, weeklyDone }
+  const [openGroups, setOpenGroups] = useState({}); // { "Skill": true, ... } — dropdown open/closed state
 
   const level = user?.level || "basic";
   const allCategories = CATEGORIES_BY_LEVEL[level] || CATEGORIES_BY_LEVEL.basic;
   const showTextOption = level === "basic";
 
+  useEffect(() => {
+    api.get('/user/progress')
+      .then(({ data }) => setStats(data))
+      .catch(() => {});
+  }, []);
+
+  const lastCategorySlug = localStorage.getItem('lastCategorySlug');
+  const lastCategory = lastCategorySlug ? allCategories.find((c) => c.key === lastCategorySlug) : null;
+
+  const toggleGroup = (name) => {
+    setOpenGroups((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
+
   // All unique topic tags available for this level, used to render filter chips.
-  const allTopics = useMemo(() => {
-    const set = new Set();
-    allCategories.forEach((c) => c.topics.forEach((t) => set.add(t)));
-    return Array.from(set).sort();
+  // Groups topics into 3 logical filter categories so the sidebar shows
+  // separate, combinable filter blocks instead of one flat list.
+  const classifyTopic = (t) => {
+    const lower = t.toLowerCase();
+    if (["speaking", "listening", "vocabulary"].includes(lower)) return "Skill";
+    if (lower.includes("grammar") || lower.includes("tense") || lower === "prepositions") return "Grammar & Structure";
+    return "Style & Focus";
+  };
+
+  const TOPIC_GROUP_ORDER = ["Skill", "Grammar & Structure", "Style & Focus"];
+
+  const topicGroups = useMemo(() => {
+    const buckets = { "Skill": new Set(), "Grammar & Structure": new Set(), "Style & Focus": new Set() };
+    allCategories.forEach((c) => c.topics.forEach((t) => buckets[classifyTopic(t)].add(t)));
+    return TOPIC_GROUP_ORDER
+      .map((name) => ({ name, topics: Array.from(buckets[name]).sort() }))
+      .filter((g) => g.topics.length > 0);
   }, [allCategories]);
 
   const toggleTopic = (topic) => {
@@ -423,13 +486,10 @@ export default function CategorySelect() {
 
   // Filters by the search box (title or topic match) AND by any active filter chips
   // (a category must contain every selected topic tag).
-  const categories = useMemo(() => {
+    const categories = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     return allCategories.filter((c) => {
-      const matchesSearch =
-        !q ||
-        c.title.toLowerCase().includes(q) ||
-        c.topics.some((t) => t.toLowerCase().includes(q));
+      const matchesSearch = !q || c.title.toLowerCase().startsWith(q);
       const matchesTopics =
         activeTopics.length === 0 || activeTopics.every((t) => c.topics.includes(t));
       return matchesSearch && matchesTopics;
@@ -455,7 +515,7 @@ export default function CategorySelect() {
     <div className="cat-page">
       <div className="cat-shell">
         {/* ── Left sidebar: search + filters ── */}
-        <aside className="cat-sidebar">
+                <aside className="cat-sidebar cat-anim-in">
           <button className="cat-home-btn" onClick={() => navigate('/')}>← Home</button>
 
           <div className="cat-sidebar-heading">
@@ -483,26 +543,54 @@ export default function CategorySelect() {
             )}
           </div>
 
-          <div className="cat-filters">
-            <div className="cat-filters-heading">
-              <span>Filter by focus</span>
-              {activeTopics.length > 0 && (
-                <button className="cat-filters-reset" onClick={() => setActiveTopics([])}>
-                  Reset
-                </button>
-              )}
-            </div>
-            <div className="cat-filters-chips">
-              {allTopics.map((topic) => (
-                <button
-                  key={topic}
-                  className={`cat-filter-chip${activeTopics.includes(topic) ? " cat-filter-chip-active" : ""}`}
-                  onClick={() => toggleTopic(topic)}
-                >
-                  {topic}
-                </button>
-              ))}
-            </div>
+                       <div className="cat-filters">
+            {topicGroups.map((group) => {
+              const groupActive = activeTopics.filter((t) => group.topics.includes(t));
+              const isOpen = !!openGroups[group.name];
+              return (
+                <div className="cat-filter-group" key={group.name}>
+                  <button className="cat-filter-dropdown-btn" onClick={() => toggleGroup(group.name)}>
+                    <span className="cat-filter-dropdown-label">
+                      {group.name}
+                      {groupActive.length > 0 && (
+                        <span className="cat-filter-count-badge">{groupActive.length}</span>
+                      )}
+                    </span>
+                    <span className={`cat-filter-chevron${isOpen ? " cat-filter-chevron-open" : ""}`}>▾</span>
+                  </button>
+
+                                   {isOpen && (
+                    <div className="cat-filter-dropdown-panel cat-panel-slide">
+                      <div className="cat-filters-chips">
+                                                {group.topics.map((topic, ti) => (
+                          <button
+                            key={topic}
+                            className={`cat-filter-chip cat-anim-in${activeTopics.includes(topic) ? " cat-filter-chip-active" : ""}`}
+                            style={{ animationDelay: `${ti * 0.03}s` }}
+                            onClick={() => toggleTopic(topic)}
+                          >
+                            {topic}
+                          </button>
+                        ))}
+                      </div>
+                      {groupActive.length > 0 && (
+                        <button
+                          className="cat-filters-reset"
+                          onClick={() => setActiveTopics((prev) => prev.filter((t) => !group.topics.includes(t)))}
+                        >
+                          Reset {group.name}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {activeTopics.length > 0 && (
+              <button className="cat-filters-reset-all" onClick={() => setActiveTopics([])}>
+                Clear all filters
+              </button>
+            )}
           </div>
 
           <p className="cat-sidebar-count">
@@ -510,17 +598,55 @@ export default function CategorySelect() {
           </p>
         </aside>
 
-        {/* ── Main content ── */}
+                       {/* ── Main content ── */}
         <div className="cat-main">
-          <h1 className="cat-h1">Hey {user?.username} 👋</h1>
-          <p className="cat-subtitle">
-            Your level: <strong className="cat-level-highlight">{LEVEL_LABELS[level] || level.toUpperCase()}</strong> — pick a topic below.
-            Each one covers real speaking practice plus the vocabulary and grammar that go with it.
-          </p>
+          <div className="cat-welcome-banner cat-anim-in">
+            <div className="cat-welcome-top">
+              <div className="cat-welcome-avatar">
+                <img src={defaultAvatarFor(user)} alt="" />
+              </div>
+              <div>
+                <h1 className="cat-h1">Hey {user?.username} <span className="cat-wave">👋</span></h1>
+                <p className="cat-subtitle">
+                  Your level: <strong className="cat-level-highlight">{LEVEL_LABELS[level] || level.toUpperCase()}</strong> — pick a topic below.
+                </p>
+              </div>
+            </div>
+
+            <div className="cat-stats-row">
+              <div className="cat-stat-card cat-anim-in" style={{ animationDelay: "0.08s" }}>
+                <span className="cat-stat-icon cat-flame-pulse">🔥</span>
+                <div>
+                  <div className="cat-stat-num">{useCountUp(stats?.streakDays ?? 0)}</div>
+                  <div className="cat-stat-label">Day streak</div>
+                </div>
+              </div>
+              <div className="cat-stat-card cat-anim-in" style={{ animationDelay: "0.16s" }}>
+                <span className="cat-stat-icon">✅</span>
+                <div>
+                  <div className="cat-stat-num">{useCountUp(stats?.lessonsCompleted ?? 0)}</div>
+                  <div className="cat-stat-label">Lessons done</div>
+                </div>
+              </div>
+              <div className="cat-stat-card cat-anim-in" style={{ animationDelay: "0.24s" }}>
+                <span className="cat-stat-icon">🎯</span>
+                <div>
+                  <div className="cat-stat-num">{useCountUp(stats?.weeklyGoal?.completed ?? 0)}/{stats?.weeklyGoal?.target ?? 5}</div>
+                  <div className="cat-stat-label">This week</div>
+                </div>
+              </div>
+            </div>
+
+            {lastCategory && (
+              <button className="cat-continue-btn" onClick={() => startPractice(lastCategory.key, "call")}>
+                <span>▶</span> Continue: {lastCategory.title}
+              </button>
+            )}
+          </div>
 
           {categories.length === 0 ? (
-            <div className="cat-empty-state">
-              <span className="cat-empty-icon">🔍</span>
+                       <div className="cat-empty-state cat-anim-in">
+              <span className="cat-empty-icon cat-empty-bounce">🔍</span>
               <p>No topics match your search / filters</p>
               <button className="cat-mode-btn" onClick={clearAll}>
                 Clear search & filters
@@ -528,11 +654,11 @@ export default function CategorySelect() {
             </div>
           ) : (
             <div className="cat-grid">
-              {categories.map((c) => (
-                <div key={c.key} className="cat-card">
+                           {categories.map((c, i) => (
+                <div key={c.key} className="cat-card cat-anim-in" style={{ animationDelay: `${Math.min(i, 8) * 0.05}s` }}>
                   <div className="cat-card-image">
                     <img
-                      src={c.image}
+                      src={reliableImage(c.image, c.key)}
                       alt={c.title}
                       loading="lazy"
                       onError={e => {
@@ -680,10 +806,236 @@ export default function CategorySelect() {
         .cat-sidebar-count {
           font-size: 12.5px; color: rgba(255,255,255,0.4); margin: 0;
         }
+                      .cat-filter-group {
+          border-bottom: 1px solid rgba(255,255,255,0.08);
+          padding-bottom: 12px;
+        }
+        .cat-filter-group:last-child { border-bottom: none; padding-bottom: 0; }
+
+        .cat-filter-dropdown-btn {
+          width: 100%;
+          display: flex; align-items: center; justify-content: space-between;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 10px;
+          padding: 11px 14px;
+          cursor: pointer;
+          font-family: inherit;
+          color: #fff;
+          transition: all 0.2s;
+        }
+        .cat-filter-dropdown-btn:hover { border-color: rgba(16,185,129,0.4); }
+        .cat-filter-dropdown-label {
+          font-size: 12.5px; font-weight: 700; text-transform: uppercase;
+          letter-spacing: 0.04em; color: rgba(255,255,255,0.75);
+          display: flex; align-items: center; gap: 8px;
+        }
+        .cat-filter-count-badge {
+          background: #10b981; color: #052014; font-size: 11px; font-weight: 800;
+          border-radius: 999px; padding: 1px 7px; text-transform: none; letter-spacing: normal;
+        }
+        .cat-filter-chevron {
+          font-size: 13px; color: rgba(255,255,255,0.5); transition: transform 0.2s;
+        }
+        .cat-filter-chevron-open { transform: rotate(180deg); color: #10b981; }
+
+        .cat-filter-dropdown-panel {
+          margin-top: 10px;
+          padding: 4px 2px 2px;
+          display: flex; flex-direction: column; gap: 10px;
+        }
+
+        .cat-filters-reset-all {
+          align-self: flex-start; background: none; border: none; cursor: pointer;
+          font-size: 12.5px; font-weight: 700; color: #f0d98a; padding: 4px 0;
+        }
+        .cat-filters-reset-all:hover { color: #d4af37; }
 
         /* ── Main content ── */
         .cat-main { flex: 1; min-width: 0; }
         .cat-h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
+                @keyframes catFadeUp {
+          from { opacity: 0; transform: translateY(14px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .cat-anim-in {
+          animation: catFadeUp 0.5s ease both;
+        }
+
+        @keyframes catWave {
+          0%, 100% { transform: rotate(0deg); }
+          15% { transform: rotate(18deg); }
+          30% { transform: rotate(-8deg); }
+          45% { transform: rotate(18deg); }
+          60% { transform: rotate(-4deg); }
+        }
+        .cat-wave {
+          display: inline-block;
+          transform-origin: 70% 70%;
+          animation: catWave 2.2s ease-in-out infinite;
+        }
+
+        @keyframes catFlamePulse {
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 0 rgba(239,68,68,0)); }
+          50% { transform: scale(1.15); filter: drop-shadow(0 0 6px rgba(239,68,68,0.6)); }
+        }
+        .cat-flame-pulse {
+          display: inline-block;
+          animation: catFlamePulse 1.8s ease-in-out infinite;
+        }
+
+        .cat-stat-card {
+          transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+        }
+        .cat-stat-card:hover {
+          transform: translateY(-3px);
+          border-color: rgba(16,185,129,0.35);
+          box-shadow: 0 8px 20px rgba(16,185,129,0.15);
+        }
+
+        .cat-card::before {
+          content: '';
+          position: absolute;
+          top: 0; left: -150%;
+          width: 60%; height: 100%;
+          background: linear-gradient(120deg, transparent, rgba(255,255,255,0.08), transparent);
+          transform: skewX(-20deg);
+          transition: left 0.6s ease;
+          pointer-events: none;
+          z-index: 3;
+        }
+                .cat-card:hover::before { left: 150%; }
+        .cat-card { position: relative; overflow: hidden; }
+
+        /* ── Sidebar & panels ── */
+        .cat-panel-slide {
+          animation: catSlideDown 0.3s ease both;
+          transform-origin: top;
+        }
+        @keyframes catSlideDown {
+          from { opacity: 0; transform: scaleY(0.85) translateY(-6px); }
+          to { opacity: 1; transform: scaleY(1) translateY(0); }
+        }
+
+        /* ── Search box ── */
+        .cat-search-box { transition: border-color 0.25s, box-shadow 0.3s, transform 0.2s; }
+        .cat-search-box:focus-within { transform: translateY(-1px); }
+        .cat-search-icon { transition: transform 0.3s; }
+        .cat-search-box:focus-within .cat-search-icon { transform: scale(1.15) rotate(-8deg); }
+        .cat-search-clear { transition: transform 0.2s, color 0.2s; }
+        .cat-search-clear:hover { transform: rotate(90deg); }
+
+        /* ── Home button ── */
+        .cat-home-btn:hover { transform: translateX(-3px); }
+
+        /* ── Filter dropdown ── */
+        .cat-filter-dropdown-btn:active { transform: scale(0.98); }
+        .cat-filter-count-badge {
+          animation: catBadgePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes catBadgePop {
+          0% { transform: scale(0); }
+          70% { transform: scale(1.2); }
+          100% { transform: scale(1); }
+        }
+
+        /* ── Filter chips ── */
+        .cat-filter-chip:hover { transform: translateY(-2px) scale(1.04); }
+        .cat-filter-chip:active { transform: scale(0.95); }
+        .cat-filter-chip-active { animation: catChipSelect 0.3s ease; }
+        @keyframes catChipSelect {
+          0% { transform: scale(1); }
+          40% { transform: scale(1.12); }
+          100% { transform: scale(1); }
+        }
+
+        .cat-filters-reset, .cat-filters-reset-all { transition: transform 0.2s; }
+        .cat-filters-reset:hover, .cat-filters-reset-all:hover { transform: translateX(2px); }
+
+        /* ── Level highlight shimmer ── */
+        .cat-level-highlight {
+          background-size: 200% auto;
+          animation: catShimmer 3s linear infinite;
+        }
+        @keyframes catShimmer {
+          0% { background-position: 0% center; }
+          100% { background-position: 200% center; }
+        }
+
+        /* ── Continue button ── */
+        .cat-continue-btn { position: relative; overflow: hidden; }
+        .cat-continue-btn:hover { transform: translateY(-2px) scale(1.02); box-shadow: 0 10px 26px rgba(16,185,129,0.4); }
+        .cat-continue-btn:active { transform: scale(0.97); }
+        .cat-continue-btn span { display: inline-block; animation: catPlayBounce 1.4s ease-in-out infinite; }
+        @keyframes catPlayBounce {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(3px); }
+        }
+
+        /* ── Empty state ── */
+        .cat-empty-bounce { display: inline-block; animation: catEmptyFloat 2s ease-in-out infinite; }
+        @keyframes catEmptyFloat {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          50% { transform: translateY(-6px) rotate(-8deg); }
+        }
+        .cat-empty-state .cat-mode-btn:hover { transform: scale(1.05); background: rgba(16,185,129,0.12); }
+
+        /* ── Category card polish ── */
+        .cat-card-icon-badge { transition: transform 0.3s; }
+        .cat-card:hover .cat-card-icon-badge { transform: scale(1.25) rotate(-6deg); }
+        .cat-topic-chip { transition: transform 0.2s; }
+        .cat-card:hover .cat-topic-chip { animation: catChipWiggle 0.4s ease; }
+        @keyframes catChipWiggle {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-2px); }
+        }
+        .cat-card-title { transition: color 0.25s; }
+        .cat-card:hover .cat-card-title { color: #6ee7b7; }
+
+        /* ── Welcome avatar breathing ring ── */
+        .cat-welcome-avatar { animation: catAvatarGlow 2.6s ease-in-out infinite; }
+        @keyframes catAvatarGlow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.35); }
+          50% { box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+        }
+
+                .cat-welcome-banner {
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.09);
+          border-radius: 20px;
+          padding: 24px 26px;
+          margin-bottom: 32px;
+        }
+        .cat-welcome-top { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+        .cat-welcome-avatar {
+          width: 56px; height: 56px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+          border: 2px solid rgba(16,185,129,0.4);
+        }
+        .cat-welcome-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .cat-welcome-top .cat-h1 { margin-bottom: 4px; }
+        .cat-welcome-top .cat-subtitle { margin: 0; max-width: none; }
+
+        .cat-stats-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+        .cat-stat-card {
+          flex: 1; min-width: 130px;
+          display: flex; align-items: center; gap: 10px;
+          background: rgba(255,255,255,0.04);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 14px;
+          padding: 12px 14px;
+        }
+        .cat-stat-icon { font-size: 22px; }
+        .cat-stat-num { font-size: 18px; font-weight: 800; color: #fff; line-height: 1.1; }
+        .cat-stat-label { font-size: 11.5px; color: rgba(255,255,255,0.5); }
+
+        .cat-continue-btn {
+          display: inline-flex; align-items: center; gap: 8px;
+          background: linear-gradient(135deg, #10b981, #059669);
+          border: none; border-radius: 12px; padding: 11px 18px;
+          color: #fff; font-weight: 700; font-size: 13.5px; cursor: pointer;
+          box-shadow: 0 6px 18px rgba(16,185,129,0.28);
+        }
+        .cat-continue-btn:hover { transform: translateY(-2px); }
         .cat-subtitle {
           color: rgba(255,255,255,0.62); font-size: 15px; margin: 0 0 40px;
           max-width: 620px; line-height: 1.6;

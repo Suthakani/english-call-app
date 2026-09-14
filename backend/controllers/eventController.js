@@ -3,7 +3,12 @@ const Event = require("../models/Event");
 const EventSubmission = require("../models/EventSubmission");
 const User = require("../models/User");
 const { getPeriodKey, getPeriodBounds } = require("../utils/tournamentUtils");
-const { getEventQuestions, gradeObjectiveAnswers } = require("../utils/pickEventQuestions");
+const {
+  getEventQuestions,
+  gradeObjectiveAnswers,
+  CHALLENGE_DURATION_SECONDS,
+  CHALLENGE_GRACE_SECONDS,
+} = require("../utils/pickEventQuestions");
 
 const TOP_N = 10;
 
@@ -65,7 +70,8 @@ const getCurrentEvent = async (req, res) => {
   try {
     const event = await getOrCreateCurrentEvent();
     const submission = await EventSubmission.findOne({ user: req.user._id, periodKey: event.periodKey }).lean();
-    res.json({ event, hasSubmitted: !!submission, myScore: submission?.totalScore ?? null });
+    const hasSubmitted = submission?.status === "completed";
+    res.json({ event, hasSubmitted, myScore: hasSubmitted ? submission.totalScore : null });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Could not load current event", error: error.message });
@@ -101,7 +107,8 @@ const markEventPopupSeen = async (req, res) => {
 
 // @route GET /api/event/challenge
 // Only serves questions while the event is LIVE, and only if the user
-// hasn't already submitted (one attempt per event).
+// hasn't already completed an attempt. Starts (or resumes) the overall
+// timer by creating/reusing an "in_progress" submission doc.
 const getChallenge = async (req, res) => {
   try {
     const event = await getOrCreateCurrentEvent();
@@ -110,12 +117,35 @@ const getChallenge = async (req, res) => {
     }
 
     const existing = await EventSubmission.findOne({ user: req.user._id, periodKey: event.periodKey });
-    if (existing) {
+    if (existing && existing.status === "completed") {
       return res.status(403).json({ message: "You've already submitted your attempt for this event." });
     }
 
-    const { grammarVocab, listening, writingPrompt } = getEventQuestions(event.periodKey);
-    res.json({ periodKey: event.periodKey, endsAt: event.endsAt, grammarVocab, listening, writingPrompt });
+    // Reuse the same startedAt if already in progress (don't let refreshing reset the clock).
+    let attempt = existing;
+    if (!attempt) {
+      attempt = await EventSubmission.create({
+        user: req.user._id,
+        periodKey: event.periodKey,
+        status: "in_progress",
+        startedAt: new Date(),
+      });
+    }
+
+    const { grammarVocab, listening, imageVocab, idioms, reading, writingPrompt, durationSeconds } = getEventQuestions(event.periodKey);
+
+    res.json({
+      periodKey: event.periodKey,
+      eventEndsAt: event.endsAt,
+      grammarVocab,
+      listening,
+      imageVocab,
+      idioms,
+      reading,
+      writingPrompt,
+      durationSeconds,
+      startedAt: attempt.startedAt,
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Could not load challenge", error: error.message });
@@ -180,9 +210,17 @@ const submitChallenge = async (req, res) => {
       return res.status(403).json({ message: "The challenge isn't live right now." });
     }
 
-    const existing = await EventSubmission.findOne({ user: req.user._id, periodKey: event.periodKey });
-    if (existing) {
+    const attempt = await EventSubmission.findOne({ user: req.user._id, periodKey: event.periodKey });
+    if (!attempt) {
+      return res.status(403).json({ message: "Start the challenge before submitting." });
+    }
+    if (attempt.status === "completed") {
       return res.status(403).json({ message: "You've already submitted your attempt for this event." });
+    }
+
+    const elapsedSeconds = (Date.now() - new Date(attempt.startedAt).getTime()) / 1000;
+    if (elapsedSeconds > CHALLENGE_DURATION_SECONDS + CHALLENGE_GRACE_SECONDS) {
+      return res.status(403).json({ message: "Time's up for this attempt — the challenge window has closed." });
     }
 
     const { answers = {}, writingText = "" } = req.body;
@@ -192,16 +230,14 @@ const submitChallenge = async (req, res) => {
 
     const totalScore = objectiveScore + writingScore;
 
-    const submission = await EventSubmission.create({
-      user: req.user._id,
-      periodKey: event.periodKey,
-      objectiveScore,
-      objectiveMax,
-      writingScore,
-      totalScore,
-      writingText,
-      writingFeedback,
-    });
+    attempt.status = "completed";
+    attempt.objectiveScore = objectiveScore;
+    attempt.objectiveMax = objectiveMax;
+    attempt.writingScore = writingScore;
+    attempt.totalScore = totalScore;
+    attempt.writingText = writingText;
+    attempt.writingFeedback = writingFeedback;
+    await attempt.save();
 
     res.json({
       totalScore,
@@ -235,7 +271,10 @@ const finalizeEventIfNeeded = async (periodKey) => {
   if (now < event.endsAt) return event; // not closed yet
   if (event.winnersFinalized) return event;
 
-  const topSubmissions = await EventSubmission.find({ periodKey })
+  // Only count attempts that were actually completed — an abandoned
+  // in-progress record (timer ran out, user never submitted) shouldn't
+  // show up in the leaderboard.
+  const topSubmissions = await EventSubmission.find({ periodKey, status: "completed" })
     .sort({ totalScore: -1 })
     .limit(TOP_N)
     .populate("user", "username avatarUrl")

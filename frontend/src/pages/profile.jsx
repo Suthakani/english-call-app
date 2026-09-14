@@ -751,6 +751,21 @@ const handleCustomAvatarSave = async (config) => {
             </div>
           )}
 
+          {(profile?.certificates?.some(c => c.type === 'event')) && (
+            <div className="profile-card profile-card-wide champion-card">
+              <div className="profile-card-title"><span className="champion-trophy-icon"><Icon name="award" size={18} /></span> Event Certificates</div>
+              <div className="profile-card-sub" style={{ marginTop: 10 }}>
+                {(profile?.certificates || [])
+                  .filter(c => c.type === 'event')
+                  .map((c, i) => (
+                    <div key={i} className="champion-cert-row" style={{ marginBottom: 6 }}>
+                      🏅 Rank #{c.rank} — {c.periodKey} — Certificate {c.certId}
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {(profile?.masteredCategories?.length || 0) > 0 && (
             <div className="profile-card profile-card-wide mastery-card-inline">
               <div className="profile-card-title"><Icon name="award" size={18} /> Mastery Titles</div>

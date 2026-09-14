@@ -7,7 +7,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import './homepage.css';
 import './pages/detailPages.css';
 import BottomNav from './components/BottomNav.jsx';
-
+import EventBanner from './components/EventBanner.jsx';
 
 const features = [
   { icon: 'mic', title: 'Voice Conversations', desc: 'Talk to our AI in real-time. It responds naturally, just like speaking with a real person.' },
@@ -124,7 +124,7 @@ const wordsOfDay = [
 
 // Default fallback shown before the backend value loads (or if it fails).
 const DEFAULT_ANNOUNCEMENT = "🎉 100% Free Forever — Learn English with unlimited AI conversations, no trial, no credit card, ever!";
-const defaultAvatarFor = user => {
+const defaultAvatarFor = (user) => {
   if (!user) return null;
   if (user.avatarUrl) return user.avatarUrl;
   const seed = user.username || user.email || 'speakup';
@@ -458,7 +458,7 @@ const [feedbackLoading, setFeedbackLoading] = useState(false);
         navigate(pendingPath);
         return;
       }
-      navigate(data.user.level === 'unassigned' ? '/level-test' : '/categories');
+            navigate(data.user.level === 'unassigned' ? '/level-test' : '/');
     } catch (error) {
       console.log(error.code);
       console.log(error.message);
@@ -508,7 +508,7 @@ const [feedbackLoading, setFeedbackLoading] = useState(false);
         navigate(pendingPath);
         return;
       }
-      navigate(data.user.level === 'unassigned' ? '/level-test' : '/categories');
+            navigate(data.user.level === 'unassigned' ? '/level-test' : '/');
     } catch (err) {
       if (err.response?.status === 403) {
         setAuthOpen(false);
@@ -546,7 +546,7 @@ const [feedbackLoading, setFeedbackLoading] = useState(false);
         setGoogleSignupInfo(null);
         login(data.user, data.token);
         setAuthOpen(false);
-        navigate(data.user.level === 'unassigned' ? '/level-test' : '/categories');
+                navigate(data.user.level === 'unassigned' ? '/level-test' : '/');
       } catch (err) {
         setSignupError(err.response?.data?.message || 'Registration failed');
       } finally {
@@ -771,6 +771,8 @@ const handleFeedbackSubmit = async e => {
           <button className="mobile-toggle" onClick={() => setMobileOpen(!mobileOpen)}><Icon name="menu" size={24} /></button>
         </div>
       </nav>
+
+      {user && user.role !== "admin" && <EventBanner />}
 
       <section className={`hero${announcementOpen ? ' with-announcement' : ''}`} id="hero">
         <div className="hero-video-wrap">

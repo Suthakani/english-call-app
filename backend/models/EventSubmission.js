@@ -4,6 +4,8 @@ const eventSubmissionSchema = new mongoose.Schema(
   {
     user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     periodKey: { type: String, required: true },
+    status: { type: String, enum: ["in_progress", "completed"], default: "in_progress" }, // NEW
+    startedAt: { type: Date }, // NEW — overall-timer anchor, set when the challenge is first fetched
     objectiveScore: { type: Number, default: 0 },
     objectiveMax: { type: Number, default: 0 },
     writingScore: { type: Number, default: 0 }, // 0-20, AI graded

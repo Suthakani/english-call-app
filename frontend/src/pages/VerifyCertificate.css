@@ -152,3 +152,50 @@
 .verify-home-link:hover {
   text-decoration: underline;
 }
+@import url("https://fonts.googleapis.com/css2?family=Alex+Brush&family=Great+Vibes&display=swap");
+
+.verify-seal-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin: 22px 0 6px;
+}
+.verify-seal-svg { width: 78px; height: 78px; }
+.verify-seal-stamp {
+  transform: rotate(-7deg);
+  transform-origin: 80px 80px;
+  opacity: 0.85;
+  mix-blend-mode: multiply;
+}
+.verify-seal-curve-text {
+  font-family: Arial, sans-serif;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  fill: #1d3a8f;
+}
+.verify-seal-center-text {
+  font-family: "Playfair Display", serif;
+  font-weight: 900;
+  font-size: 26px;
+  fill: #1d3a8f;
+}
+.verify-seal-center-year {
+  font-family: Arial, sans-serif;
+  font-size: 7px;
+  letter-spacing: 1px;
+  fill: #1d3a8f;
+}
+.verify-signature-svg { width: 150px; height: 46px; }
+.verify-seal-caption {
+  display: flex;
+  justify-content: center;
+  gap: 66px;
+  font-family: Arial, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #8a978e;
+  margin-bottom: 18px;
+}
