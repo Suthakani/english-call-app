@@ -1,6 +1,7 @@
 const ConversationSession = require("../models/ConversationSession");
 const User = require("../models/User");
 const { addTimeSpent } = require("./activityController");
+const { addPoints } = require("../utils/pointsUtils");
 // @route GET /api/conversation/sessions
 const getSessions = async (req, res) => {
   try {
@@ -46,7 +47,7 @@ const saveSession = async (req, res) => {
       wordsSpoken,
       transcript,
     });
-    await User.findByIdAndUpdate(req.user._id, { $inc: { points: 500 } });
+    await addPoints(req.user._id, 500);
     // Opportunistically update personal bests — only write if this session
     // actually beats the stored record, so we never need a separate
     // recompute job.

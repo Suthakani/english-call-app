@@ -9,12 +9,13 @@ function initSocket(httpServer) {
   });
 
   io.on('connection', (socket) => {
-    socket.on('identify', (userId) => {
-      socket.join(`user:${userId}`);
-      socket.data.userId = userId;
-      onlineUsers.set(userId, socket.id);
-      io.emit('presence:update', { userId, online: true });
-    });
+  socket.on('identify', (userId) => {
+  const uid = String(userId);          // ⬅️ ADD THIS LINE
+  socket.join(`user:${uid}`);
+  socket.data.userId = uid;
+  onlineUsers.set(uid, socket.id);      // ⬅️ CHANGE userId → uid
+  io.emit('presence:update', { userId: uid, online: true });  // ⬅️ CHANGE userId → uid
+});
 
     socket.on('session:join', (sessionId) => {
       socket.join(`session:${sessionId}`);
@@ -39,13 +40,13 @@ function initSocket(httpServer) {
       socket.leave(`session:${sessionId}`);
     });
 
-    socket.on('disconnect', () => {
-      const userId = socket.data.userId;
-      if (userId && onlineUsers.get(userId) === socket.id) {
-        onlineUsers.delete(userId);
-        io.emit('presence:update', { userId, online: false });
-      }
-    });
+  socket.on('disconnect', () => {
+  const userId = socket.data.userId;   // already string now, no change needed
+  if (userId && onlineUsers.get(userId) === socket.id) {
+    onlineUsers.delete(userId);
+    io.emit('presence:update', { userId, online: false });
+  }
+});
   });
 
   return io;

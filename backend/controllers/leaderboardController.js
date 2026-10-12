@@ -78,41 +78,55 @@ const finalizePastCyclesIfNeeded = async () => {
   for (let idx = nextToFinalize; idx < currentIndex; idx++) {
     if (!isCycleComplete(idx)) break; // shouldn't happen given idx < currentIndex, but stay safe
 
-    const exists = await CycleWinner.findOne({ cycleIndex: idx });
-    if (exists) continue;
 
-    const top = await User.findOne({ isVerified: true })
-      .sort({ points: -1, streakDays: -1 })
-      .select("username avatarUrl points")
+
+    const key = `cyclePoints.${idx}`;
+
+    const top = await User.findOne({ isVerified: true, [key]: { $gt: 0 } })
+      .sort({ [key]: -1, streakDays: -1 })
+      .select("username avatarUrl cyclePoints")
       .lean();
 
-    if (!top || (top.points || 0) <= 0) continue; // nobody earned points this cycle — skip, no winner
+    if (!top) continue; // yaarum point edukkala, winner illa
+
+    const cyclePts = top.cyclePoints?.[idx] || 0;
 
     const { start, end } = getCycleBounds(idx);
-    await CycleWinner.create({
-      cycleIndex: idx,
-      cycleStart: start,
-      cycleEnd: end,
-      user: top._id,
-      username: top.username,
-      avatarUrl: top.avatarUrl,
-      points: top.points,
-    });
 
-    
-    const certId = `CHAMP-${idx}-${top._id.toString().slice(-6).toUpperCase()}`;
+    // Guard: if two requests race, the unique index on cycleIndex makes the
+    // second create fail, and we skip instead of double-awarding.
+    try {
+      await CycleWinner.create({
+        cycleIndex: idx,
+        cycleStart: start,
+        cycleEnd: end,
+        user: top._id,
+        username: top.username,
+        avatarUrl: top.avatarUrl,
+                points: cyclePts,
+      });
+    } catch (e) {
+      if (e.code === 11000) continue;
+      throw e;
+    }
 
-    await User.findByIdAndUpdate(top._id, {
+        const ymd = new Date(end.getTime() - 1).toISOString().slice(0, 10).replace(/-/g, "");
+    const certId = `CHAMP-${idx + 1}-${top._id.toString().slice(-6).toUpperCase()}-${ymd}`;
+    // e.g. CHAMP-2-6518AF-20260919
+
+       await User.findByIdAndUpdate(top._id, {
       $inc: { streakFreezeCount: 3 },
       $push: {
         wonCycles: idx,
-        championBadges: { cycleIndex: idx, cycleStart: start, cycleEnd: end, points: top.points },
+        championBadges: { cycleIndex: idx, cycleStart: start, cycleEnd: end, points: cyclePts },
         certificates: { type: "champion", cycleIndex: idx, certId },
       },
       $set: { unseenWinCycle: idx },
     });
-  }
-};
+  }   // <- for loop close
+};    // <- function close
+
+// @route GET /api/leaderboard/winner-popup
 
 // @route GET /api/leaderboard/winner-popup
 // Finalizes any overdue cycles, then tells the frontend whether THIS user

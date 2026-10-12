@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import api from "../api/axiosConfig.js";
-
+import { connectSocket, disconnectSocket } from "../socket"; // path unga socket.js file location ku match aganum
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -24,18 +24,18 @@ const [profileLoaded, setProfileLoaded] = useState(false);
     }
   };
 
-  const login = (userData, token) => {
-    localStorage.setItem("token", token);
-    persistUser(userData);
-    setUser(userData);
-  };
-
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-    setUser(null);
-  };
-
+const login = (userData, token) => {
+  localStorage.setItem("token", token);
+  persistUser(userData);
+  setUser(userData);
+  connectSocket(userData._id || userData.id);   // ⬅️ ADD THIS LINE
+};
+const logout = () => {
+  disconnectSocket();                            // ⬅️ ADD THIS LINE
+  localStorage.removeItem("token");
+  localStorage.removeItem("user");
+  setUser(null);
+};
   const updateUser = (patch) => {
     setUser(prev => {
       const updated = { ...prev, ...patch };
@@ -49,20 +49,21 @@ const [profileLoaded, setProfileLoaded] = useState(false);
   // backend once here to hydrate it. This is what keeps the navbar avatar
   // and the profile page avatar in sync after a reload, instead of the
   // navbar falling back to the generated placeholder.
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      setProfileLoaded(true); // not logged in — nothing to wait for
-      return;
-    }
-    api.get('/user/profile')
-      .then(({ data }) => {
-        setUser(prev => (prev ? { ...prev, ...data } : prev));
-      })
-      .catch(() => {})
-      .finally(() => setProfileLoaded(true));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+useEffect(() => {
+  const token = localStorage.getItem("token");
+  if (!token) {
+    setProfileLoaded(true);
+    return;
+  }
+  api.get('/user/profile')
+    .then(({ data }) => {
+      setUser(prev => (prev ? { ...prev, ...data } : prev));
+      connectSocket(data._id || data.id);        // ⬅️ ADD THIS LINE
+    })
+    .catch(() => {})
+    .finally(() => setProfileLoaded(true));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   return (
     <AuthContext.Provider value={{ user, login, logout, updateUser, profileLoaded }}>

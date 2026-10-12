@@ -1,6 +1,6 @@
 const quizContent = require("../data/quizContent");
 const User = require("../models/User");
-
+const { addPoints, addPointsToDoc } = require("../utils/pointsUtils");
 const normalize = (s) =>
   (s || "")
     .toLowerCase()
@@ -123,7 +123,7 @@ const checkQuizAnswer = async (req, res) => {
   // Award 2 points for each correct answer.
   // Award 10 points for each correct answer.
 if (isCorrect && req.user) {
-  await User.findByIdAndUpdate(req.user._id, { $inc: { points: 10 } });
+  await addPoints(req.user._id, 10);
 }
 
   res.json({
@@ -156,7 +156,7 @@ const completeLevel = async (req, res) => {
 
     if (levelNum === currentUnlocked && levelNum < content.length) {
       user.quizLevels[category] = currentUnlocked + 1;
-      user.points = (user.points || 0) + 2000;
+      addPointsToDoc(user, 2000);
     
     } else if (levelNum === currentUnlocked && levelNum === content.length) {
       // Final level (100) just completed — award the mastery title +
@@ -166,7 +166,7 @@ const completeLevel = async (req, res) => {
         user.masteredCategories.push(category);
         certificateEarned = true; // kept as the same response flag name so the frontend "level finished" trigger still works
       }
-      user.points = (user.points || 0) + 2000;
+      addPointsToDoc(user, 2000);
     }
 
     await user.save();

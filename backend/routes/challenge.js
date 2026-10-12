@@ -4,7 +4,7 @@ const challenges = require('../data/challenges');
 const ChallengeCompletion = require('../models/ChallengeCompletion');
 const UserChallengeState = require('../models/UserChallengeState');
 const { protect: requireAuth } = require('../middleware/authMiddleware');
-
+const { addPoints } = require('../utils/pointsUtils');
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
 const shuffle = arr => {
@@ -115,7 +115,7 @@ router.post('/:slug/submit', requireAuth, async (req, res) => {
     answers, score, maxScore, passed, badgeAwarded,
   });
   const pointsEarned = score * 10;
-await require('../models/User').findByIdAndUpdate(req.user.id, { $inc: { points: pointsEarned } });
+  await addPoints(req.user.id, pointsEarned);
 
 res.json({ score, maxScore, passed, badgeAwarded, feedback, pointsEarned });
 

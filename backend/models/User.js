@@ -32,6 +32,7 @@ const userSchema = new mongoose.Schema(
     streakDays: { type: Number, default: 0 },
     
 points: { type: Number, default: 0 },
+cyclePoints: { type: mongoose.Schema.Types.Mixed, default: {} }, // { "2": 1150, "3": 300 } cycle index -> points
 quizLevels: {
   grammar: { type: Number, default: 1 },
   vocabulary: { type: Number, default: 1 },

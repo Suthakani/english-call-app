@@ -36,14 +36,17 @@ const touchStreak = async (user) => {
 
   if (diffDays === 1) {
     user.streakDays += 1;
-  } else if (diffDays === 2 && user.streakFreezeCount > 0) {
-    user.streakFreezeCount -= 1;
-    user.streakFreezeUsedDate = today.toISOString().slice(0, 10);
-    user.streakDays += 1;
   } else if (diffDays > 1) {
-    user.streakDays = 1; // streak broken, restart
+    const missed = diffDays - 1; // number of days skipped
+    if ((user.streakFreezeCount || 0) >= missed) {
+      // one freeze covers each missed day, streak continues
+      user.streakFreezeCount -= missed;
+      user.streakFreezeUsedDate = new Date(today.getTime() - MS_PER_DAY).toISOString().slice(0, 10);
+      user.streakDays += 1;
+    } else {
+      user.streakDays = 1; // not enough freezes, streak restarts
+    }
   }
-
   // Award a milestone freeze bonus the day the streak lands exactly on
   // 7 / 30 / 100, respecting the max stockpile cap.
   const bonus = STREAK_MILESTONES[user.streakDays];
