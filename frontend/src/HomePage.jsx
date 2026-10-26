@@ -29,11 +29,10 @@ const learningCategories = [
   { icon: 'trophy', title: 'Daily Practice', desc: 'Small daily tasks to keep your learning consistent.', level: 'Advanced', slug: 'daily-practice', image: 'https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=600&q=80' },
 ];
 
-
 const testimonials = [
-  { avatar: 'P', name: 'Priya from Chennai', role: 'Software Engineer', text: '"I was terrified to speak English at work meetings. After 2 weeks on SpeakUp, I led my first presentation in English!"', slug: 'speaking', tryLabel: 'Try: Speaking practice' },
-  { avatar: 'R', name: 'Raj from Mumbai', role: 'College Student', text: '"The instant correction feature is game-changing. I didn\'t even know I was making those grammar mistakes!"', slug: 'grammar', tryLabel: 'Try: Grammar practice' },
-  { avatar: 'M', name: 'Maria from São Paulo', role: 'Marketing Manager', text: '"I tried 5 different apps. SpeakUp is the only one that actually makes me FEEL like I\'m having a real conversation."', slug: 'listening', tryLabel: 'Try: Listening practice' },
+  { avatar: 'P', name: 'Priya Ramesh', role: 'Software Engineer, Chennai', rating: 5, text: '"I used to freeze in work meetings. After two weeks of daily practice, I led my first presentation in English."' },
+  { avatar: 'R', name: 'Rahul Verma', role: 'College Student, Pune', rating: 4, text: '"The instant corrections are really useful. I never realised I was making those grammar mistakes."' },
+  { avatar: 'M', name: 'Maria Santos', role: 'Marketing Manager, São Paulo', rating: 4, text: '"Tried a few apps before this. This is the only one that feels like a real conversation."' },
 ];
 
 const socials = [
@@ -844,15 +843,24 @@ const handleFeedbackSubmit = async e => {
         <div className="streak-panel reveal">
           <div className="streak-flame-box">
             <div className="streak-flame-icon"><Icon name="flame" size={36} /></div>
-            <div className="streak-count-num shimmer-text">{user ? (liveStreak ?? 0) : 0}</div>
-            <div className="streak-count-label">
-              {user
-                ? (liveStreak ? 'day streak — keep it going!' : 'day streak — practice today to start')
-                : 'day streak — start today'}
-            </div>
-            {!user && (
-              <button className="streak-cta-btn" onClick={() => openAuth('signup')}>Start My Streak</button>
-            )}
+           {user ? (
+  <div className="streak-count-num shimmer-text">{liveStreak ?? 0}</div>
+) : (
+  <div style={{ display: 'flex', gap: 8, margin: '14px 0' }}>
+    {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((d, i) => (
+      <span
+        key={i}
+        style={{
+          width: 28, height: 28, borderRadius: '50%',
+          border: '1.5px dashed rgba(255,255,255,0.35)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, opacity: 0.75,
+        }}
+      >{d}</span>
+    ))}
+  </div>
+)}
+           
           </div>
           <div className="streak-badges">
             {streakMilestones.map((m, i) => (
@@ -866,8 +874,9 @@ const handleFeedbackSubmit = async e => {
       </section>
       )}
 
-      <section className="section today-challenge-section">
+      
   {todaysChallenge && (
+    <section className="section today-challenge-section">
     <div
       className={`today-challenge-card${challengeStatus?.completed ? ' today-challenge-done' : ''} reveal`}
       role="button" tabIndex={0}
@@ -886,8 +895,9 @@ const handleFeedbackSubmit = async e => {
       </div>
       {!challengeStatus?.completed && <div className="today-challenge-arrow"><Icon name="arrow-right" size={20} /></div>}
     </div>
+    </section>
   )}
-</section>
+
 
       <section className="section" id="features">
         <div className="section-header reveal">
@@ -913,7 +923,7 @@ const handleFeedbackSubmit = async e => {
           <p className="section-desc">Pick a category and start learning English in the easiest way.</p>
         </div>
         <div className="learning-grid">
-          {learningCategories.slice(0, 5).map((item, i) => (
+          {learningCategories.map((item, i) => (
             <div
               className={`learning-card reveal reveal-delay-${(i % 3) + 1}`}
               key={i}
@@ -945,22 +955,7 @@ const handleFeedbackSubmit = async e => {
             </div>
           ))}
 
-          {/* Know More card — goes to a brand new "all categories" page */}
-          <div
-            className="learning-card learning-card-more reveal"
-            role="button"
-            tabIndex={0}
-            onClick={() => navigate('/all-categories')}
-            onKeyDown={e => { if (e.key === 'Enter') navigate('/all-categories'); }}
-            onMouseMove={handleCardTilt}
-            onMouseLeave={resetCardTilt}
-          >
-            <div className="learning-card-more-inner">
-              <div className="learning-icon icon-pulse"><Icon name="arrow-right" size={22} /></div>
-              <h3 className="learning-title">Know More</h3>
-              <p className="learning-desc">See all learning categories we offer</p>
-            </div>
-          </div>
+          
         </div>
       </section>
       <section className="section level-check-section" id="level-check">
@@ -1061,32 +1056,29 @@ const handleFeedbackSubmit = async e => {
           <h2 className="section-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/reviews')}>Loved by Learners<br /><span className="gradient-text">Worldwide</span></h2>
           <p className="section-desc">Real stories from real people who transformed their English speaking skills.</p>
         </div>
-                <div className="testimonial-grid">
-          {testimonials.map((t, i) => (
-            <div className={`testimonial-card reveal reveal-delay-${i + 1}`} key={i}>
-              <div className="testimonial-flip">
-                <div className="testimonial-flip-inner">
-                  <div className="testimonial-front">
-                    <div className="testimonial-stars">{[1,2,3,4,5].map(s => <Icon key={s} name="star" size={16} />)}</div>
-                    <div className="testimonial-text">{t.text}</div>
-                    <div className="testimonial-author">
-                      <div className="testimonial-avatar">{t.avatar}</div>
-                      <div><div className="testimonial-name">{t.name}</div><div className="testimonial-role">{t.role}</div></div>
-                    </div>
-                  </div>
-                  <div className="testimonial-back">
-                    <div className="testimonial-back-avatar">{t.avatar}</div>
-                    <div className="testimonial-back-name">{t.name}</div>
-                    <div className="testimonial-back-role">{t.role}</div>
-                    <button className="testimonial-try-link testimonial-back-btn" onClick={() => goOrAuth(`/learn/${t.slug}`, t.slug)}>
-                      {t.tryLabel} <Icon name="arrow-right" size={14} />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="testimonial-grid">
+  {testimonials.map((t, i) => (
+    <div className={`testimonial-card reveal reveal-delay-${i + 1}`} key={i}>
+      <div className="testimonial-front">
+        <div className="testimonial-stars">
+          {[1, 2, 3, 4, 5].map(s => (
+            <span key={s} style={{ opacity: s <= t.rating ? 1 : 0.25 }}>
+              <Icon name="star" size={16} />
+            </span>
           ))}
         </div>
+        <div className="testimonial-text">{t.text}</div>
+        <div className="testimonial-author">
+          <div className="testimonial-avatar">{t.avatar}</div>
+          <div>
+            <div className="testimonial-name">{t.name}</div>
+            <div className="testimonial-role">{t.role}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  ))}
+</div>
       </section>
      <section className="section feedback-section" id="feedback">
   <div className="section-header reveal">

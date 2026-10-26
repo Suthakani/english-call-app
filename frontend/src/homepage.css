@@ -2305,3 +2305,38 @@ mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
 .light-theme .back-home-btn:hover {
   background: rgba(16,185,129,0.08);
 }
+.learning-grid {
+  grid-template-columns: repeat(3, 1fr) !important;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  gap: 24px;
+}
+
+.learning-card-image {
+  height: 190px;
+}
+
+.learning-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 900px) {
+  .learning-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .learning-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+.testimonial-card .testimonial-front {
+  position: static;
+  transform: none;
+  backface-visibility: visible;
+  height: auto;
+}

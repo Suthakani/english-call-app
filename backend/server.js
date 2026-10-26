@@ -54,6 +54,7 @@ app.use("/api/event", require("./routes/eventRoutes"));
 app.use("/api/contact", require("./routes/contactRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/qna", require("./routes/qnaRoutes"));
+app.use("/api/feedback", require("./routes/feedbackRoutes"));
 app.get("/api/announcement", async (req, res) => {
   try {
     const SiteSettings = require("./models/SiteSettings");

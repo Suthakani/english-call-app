@@ -1,5 +1,10 @@
 const ActivityLog = require("../models/ActivityLog");
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const getWeekStartStr = (date = new Date()) => {
+  const weekStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  weekStart.setUTCDate(weekStart.getUTCDate() - weekStart.getUTCDay());
+  return weekStart.toISOString().slice(0, 10);
+};
 
 // Call this from wherever a "practice" event actually happens on the
 // backend — the /conversation/turn handler (after a successful AI reply)
@@ -63,18 +68,12 @@ const getActivity = async (req, res) => {
 // Helper for the weekly-goal calculation: counts distinct active days in
 // the current week (Sunday–Saturday, matching the frontend's week logic).
 const getWeeklyCompletedCount = async userId => {
-  const today = new Date();
-  const dayOfWeek = today.getDay(); // 0 = Sunday
-  const weekStart = new Date(today);
-  weekStart.setDate(weekStart.getDate() - dayOfWeek);
-  const weekStartStr = weekStart.toISOString().slice(0, 10);
-
   const count = await ActivityLog.countDocuments({
     user: userId,
-    date: { $gte: weekStartStr },
+    date: { $gte: getWeekStartStr() },
     count: { $gt: 0 },
   });
   return count;
 };
 
-module.exports = { getActivity, logActivity, getWeeklyCompletedCount, addTimeSpent };
+module.exports = { getActivity, logActivity, getWeeklyCompletedCount, getWeekStartStr, addTimeSpent };

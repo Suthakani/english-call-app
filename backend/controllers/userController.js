@@ -1,6 +1,6 @@
 const User = require("../models/User");
 const categories = require("../data/categories");
-const { getWeeklyCompletedCount, logActivity } = require("./activityController");
+const { getWeeklyCompletedCount, getWeekStartStr, logActivity } = require("./activityController");
 const VocabWord = require("../models/VocabWord");
 const ConversationSession = require("../models/ConversationSession");
 const ActivityLog = require("../models/ActivityLog");
@@ -169,10 +169,7 @@ const getProgress = async (req, res) => {
     // Award a freeze bonus the first time the user's weekly goal is fully
     // met this week (weekStartStr keeps this idempotent — won't re-award
     // on every subsequent request the same week).
-    const dayOfWeek = new Date().getDay();
-    const weekStart = new Date();
-    weekStart.setDate(weekStart.getDate() - dayOfWeek);
-    const weekStartStr = weekStart.toISOString().slice(0, 10);
+    const weekStartStr = getWeekStartStr();
 
     if (
       weeklyCompleted >= user.weeklyGoalTarget &&
